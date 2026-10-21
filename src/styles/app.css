@@ -148,3 +148,56 @@
 /* Profile identity is not part of the single-user workspace. */
 .sidebar-bottom { margin-top: auto; }
 @media (max-width: 760px) { .sidebar .profile-button { display: none; } }
+
+/* Keep editor actions aligned and readable in the compact document header. */
+.editor-topbar { min-height: 56px; height: 56px; flex-basis: 56px; gap: 18px; padding-inline: 22px; }
+.editor-topbar .topbar-left { min-width: 0; gap: 12px; white-space: nowrap; }
+.back-button { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-soft); cursor: pointer; }
+.back-button:hover { border-color: var(--border-strong); background: var(--surface-3); color: var(--text); }
+.back-button svg { width: 16px; height: 16px; }
+.crumb-divider { width: 1px; height: 22px; flex: 0 0 1px; background: var(--border); }
+.topbar-brand-crumb { flex: 0 0 auto; white-space: nowrap; }
+.save-indicator { display: inline-flex; min-width: 86px; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 10px; white-space: nowrap; }
+.save-mark { display: grid; width: 14px; height: 14px; flex: 0 0 14px; place-items: center; }
+.save-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.save-mark .checkmark, .save-mark .error-mark { display: none; }
+.save-indicator.saved .save-mark { color: var(--mint); }
+.save-indicator.saving .save-mark { color: var(--accent); animation: save-pulse .9s ease-in-out infinite alternate; }
+.save-indicator.error { color: var(--red); }
+.save-indicator.error .save-mark { color: var(--red); }
+.save-indicator.error .floppy-outline, .save-indicator.error .floppy-cut { display: none; }
+.save-indicator.error .error-mark { display: block; }
+.editor-topbar .topbar-right { position: relative; flex: 0 0 auto; gap: 8px; white-space: nowrap; }
+.editor-context { display: inline-flex; align-items: center; gap: 7px; margin-right: 3px; color: var(--muted); font-size: 10px; }
+.context-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px color-mix(in srgb, var(--mint) 50%, transparent); }
+.share-button { display: inline-flex; height: 33px; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-soft); cursor: pointer; font-size: 10px; }
+.share-button:hover { border-color: var(--accent); background: var(--surface-3); color: var(--text); }
+.share-button svg { width: 14px; height: 14px; }
+.editor-topbar .topbar-icon { width: 32px; height: 32px; flex-basis: 32px; border: 1px solid var(--border); background: var(--surface); }
+.editor-topbar .topbar-icon:hover { background: var(--surface-3); }
+@keyframes save-pulse { from { opacity: .45; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  .editor-topbar { gap: 8px; padding-inline: 10px; }
+  .editor-topbar .topbar-left { gap: 7px; }
+  .back-button { width: 30px; height: 30px; flex-basis: 30px; }
+  .save-indicator { min-width: 0; padding: 5px 6px; }
+  .save-indicator > span:last-child { display: none; }
+  .editor-context { display: none; }
+  .editor-topbar .topbar-right { gap: 5px; }
+  .share-button { height: 30px; padding-inline: 8px; }
+}
+@media (max-width: 520px) {
+  .editor-topbar { min-height: 50px; height: 50px; flex-basis: 50px; padding-inline: 7px; }
+  .topbar-brand-crumb { font-size: 9px; }
+  .save-indicator { display: none; }
+  .share-button { font-size: 9px; }
+  .editor-topbar .topbar-right > .topbar-icon { display: none; }
+}
+
+.export-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(4 8 18 / 42%); backdrop-filter: blur(8px); animation: fade-in .16s ease-out; }
+.export-dialog { display: flex; width: min(310px, 100%); min-height: 164px; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 24px; border: 1px solid var(--border-strong); border-radius: 18px; background: var(--surface-2); box-shadow: 0 26px 85px rgb(0 0 0 / 42%); color: var(--text); animation: export-dialog-in .22s var(--ease-out); text-align: center; }
+.export-save-mark { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 3px; border: 1px solid rgb(130 153 255 / 25%); border-radius: 50%; background: rgb(113 140 255 / 10%); color: var(--mint); }
+.export-save-mark .save-mark, .export-save-mark .save-mark svg { width: 23px; height: 23px; }
+.export-dialog > strong { font-family: Manrope, sans-serif; font-size: 14px; font-weight: 650; }
+.export-dialog > span:last-child { color: var(--muted); font-size: 11px; }
+@keyframes export-dialog-in { from { opacity: 0; transform: translateY(7px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }

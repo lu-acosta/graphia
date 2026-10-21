@@ -22,6 +22,7 @@ export default function App() {
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved')
   const [menuId, setMenuId] = useState<string | null>(null)
   const [showPalette, setShowPalette] = useState(false)
+  const [exportNotice, setExportNotice] = useState(false)
   const [importError, setImportError] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
   const t = copy[preferences.language]
@@ -96,7 +97,7 @@ export default function App() {
   }, [documents, preferences.language, query, sortByName, view])
   const exportDoc = (doc: Doc) => {
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/vnd.graphia.document+json' })
-    const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${doc.title.replace(/[^\p{L}\p{N}-]+/gu, '-').toLowerCase() || 'graphia-document'}.graphia.json`; anchor.click(); URL.revokeObjectURL(url); setMenuId(null)
+    const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${doc.title.replace(/[^\p{L}\p{N}-]+/gu, '-').toLowerCase() || 'graphia-document'}.graphia.json`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setMenuId(null); setExportNotice(true); window.setTimeout(() => setExportNotice(false), 1800)
   }
   const importDoc = async (file: File) => {
     setImportError('')
@@ -141,6 +142,7 @@ export default function App() {
       </>}
     </main>
     {showPalette && <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowPalette(false) }}><div className="command-palette" role="dialog" aria-modal="true" aria-label="Quick actions"><div className="palette-search"><Command /><input autoFocus placeholder={preferences.language === 'es' ? 'Buscar una acción…' : 'Search for an action…'} /><kbd>ESC</kbd></div><div className="palette-section">{preferences.language === 'es' ? 'ACCIONES RÁPIDAS' : 'QUICK ACTIONS'}</div><button onClick={() => { setShowPalette(false); void createNew() }}><FilePlus2 /><span>{t.new}<small>⌘ N</small></span></button><button onClick={() => { setShowPalette(false); document.getElementById('document-search')?.focus() }}><Search /><span>{t.search}<small>⌘ K</small></span></button><button onClick={() => { setShowPalette(false); setView('settings'); setCurrentId(null) }}><Settings2 /><span>{t.settings}</span></button><div className="palette-hint"><span>↑ ↓ {preferences.language === 'es' ? 'navegar' : 'navigate'}</span><span>↵ {preferences.language === 'es' ? 'seleccionar' : 'select'}</span><span>esc {preferences.language === 'es' ? 'cerrar' : 'close'}</span></div></div></div>}
+    {exportNotice && <div className="export-backdrop" role="status" aria-live="polite"><div className="export-dialog"><span className="export-save-mark"><SaveMark state="saved" /></span><strong>{preferences.language === 'es' ? 'Documento exportado' : 'Document exported'}</strong><span>{preferences.language === 'es' ? 'La descarga está lista.' : 'Your download is ready.'}</span></div></div>}
   </div>
 }
 
