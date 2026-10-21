@@ -80,3 +80,46 @@
 @media (max-width: 1050px) { .toolbar { gap: 5px; padding-inline: 14px; }.style-select { width: 94px; }.paper-inner { padding-inline: clamp(28px, 6vw, 59px); } }
 @media (max-width: 760px) { .toolbar { min-height: 40px; flex-basis: 40px; gap: 3px; padding-inline: 8px; }.toolbar .tool-icon { width: 25px; flex-basis: 25px; }.style-select { width: 82px; }.command-tip span { display: none; }.paper-scroll { padding: 14px 10px 24px; }.paper-inner { padding: 38px clamp(22px, 7vw, 52px) 45px; }.document-prose h1 { font-size: 23px; }.document-prose { font-size: 12px; } }
 @media (max-width: 520px) { .toolbar { gap: 1px; padding-inline: 4px; }.toolbar .tool-icon { width: 23px; flex-basis: 23px; }.toolbar-divider { margin-inline: 0; }.style-select { width: 76px; }.command-tip { display: none; }.paper { width: 100%; }.paper-inner { padding-inline: 22px; }.editor-kicker { font-size: 7px; }.paper-end { font-size: 6px; }.suggestion-menu { left: 12px; } }
+
+/* Document-first writing layout */
+.editor-layout { display: flex; padding: 0; overflow: hidden; }
+.editor-main-column { border: 0; border-radius: 0; background: transparent; overflow: hidden; }
+.document-title-row { min-height: 70px; flex-basis: 70px; padding-inline: clamp(20px, 5vw, 56px); }
+.document-heading input { font-size: 20px; }
+.document-heading > span { font-size: 10px; }
+.bottom-toolbar { position: relative; min-height: 46px; flex-basis: 46px; gap: 7px; padding-inline: clamp(18px, 5vw, 56px); border-block: 1px solid var(--border); background: var(--surface); }
+.bottom-toolbar .style-select { width: 126px; height: 30px; padding-left: 0; border: 0; border-radius: 5px; background: transparent; }
+.bottom-toolbar .style-select select { padding-left: 9px; font-size: 11px; }
+.bottom-toolbar .tool-icon { width: 30px; height: 30px; flex-basis: 30px; }
+.bottom-toolbar .toolbar-divider { height: 21px; }
+.paper-scroll { padding: 28px 22px 45px; }
+.editor-main-column .paper { width: min(100%, 820px); min-height: 900px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); box-shadow: 0 2px 8px rgb(0 0 0 / 13%); }
+:root[data-theme='light'] .editor-main-column .paper { background: #fff; }
+.editor-main-column .paper-inner { max-width: 740px; padding: 76px clamp(40px, 8vw, 96px) 88px; }
+.editor-main-column .document-prose { min-height: 650px; color: var(--text); font-size: 15px; line-height: 1.8; }
+.editor-main-column .document-prose h1 { font-size: 30px; }
+.editor-main-column .document-prose h2 { font-size: 22px; }
+.editor-main-column .document-prose h1, .editor-main-column .document-prose h2, .editor-main-column .document-prose h3 { color: var(--text); }
+.editor-main-column .document-prose em { color: inherit; }
+.math-menu-anchor { position: relative; }
+.math-insert-menu { position: absolute; z-index: 12; top: calc(100% + 10px); left: 0; width: min(370px, calc(100vw - 30px)); padding: 12px; border: 1px solid var(--border-strong); border-radius: 13px; background: var(--surface-2); box-shadow: var(--panel-shadow); }
+.math-menu-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 10px; color: var(--text); font-size: 12px; }
+.math-menu-head button { display: grid; width: 25px; height: 25px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.math-menu-head button:hover { background: var(--surface-3); color: var(--text); }
+.math-menu-head svg { width: 14px; }
+.math-command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.math-command-grid button { display: flex; min-height: 35px; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-soft); cursor: pointer; text-align: left; font-size: 10px; }
+.math-command-grid button:hover, .math-symbol-grid button:hover { border-color: var(--accent); background: var(--surface-3); }
+.math-command-grid button span { width: 24px; color: var(--accent); font-family: Georgia, serif; font-size: 16px; text-align: center; }
+.math-symbol-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding-top: 9px; }
+.math-symbol-grid button { height: 31px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); cursor: pointer; font-family: Georgia, serif; font-size: 16px; }
+.suggestion-menu { top: 32px; left: 32px; }
+@media (max-width: 760px) {
+  .document-title-row { min-height: 60px; flex-basis: 60px; padding-inline: 14px; }
+  .bottom-toolbar { min-height: 43px; flex-basis: 43px; padding-inline: 7px; gap: 3px; }
+  .bottom-toolbar .style-select { width: 92px; }
+  .bottom-toolbar .tool-icon { width: 25px; flex-basis: 25px; }
+  .editor-main-column .paper { min-height: 700px; }
+  .editor-main-column .paper-inner { padding: 47px 25px 60px; }
+  .editor-main-column .document-prose { font-size: 13px; }
+}
