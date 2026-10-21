@@ -10,12 +10,6 @@ function FormulaView({ node, updateAttributes, selected }: NodeViewProps) {
   useLayoutEffect(() => {
     if (mathRef.current && mathRef.current.value !== node.attrs.latex) mathRef.current.value = node.attrs.latex
   }, [node.attrs.latex])
-  useLayoutEffect(() => {
-    if (!node.attrs.focusOnInsert || !mathRef.current) return
-    mathRef.current.focus()
-    mathRef.current.executeCommand('moveToNextPlaceholder')
-    updateAttributes({ focusOnInsert: false })
-  }, [node.attrs.focusOnInsert, updateAttributes])
   const handleInput = (event: Event) => updateAttributes({ latex: (event.target as MathfieldElement).value })
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key === 'ArrowRight' && (event.currentTarget as HTMLElement).matches(':focus')) {
@@ -40,10 +34,9 @@ export const FormulaNode = Node.create({
   addAttributes() {
     return {
       latex: { default: 'x^2', parseHTML: (element) => element.getAttribute('data-latex') ?? 'x^2', renderHTML: (attributes) => ({ 'data-latex': attributes.latex }) },
-      focusOnInsert: { default: false, rendered: false },
     }
   },
   parseHTML() { return [{ tag: 'span[data-formula]' }] },
-  renderHTML({ HTMLAttributes }) { return ['span', mergeAttributes(HTMLAttributes, { 'data-formula': '' }), 0] },
+  renderHTML({ HTMLAttributes }) { return ['span', mergeAttributes(HTMLAttributes, { 'data-formula': '' })] },
   addNodeView() { return ReactNodeViewRenderer(FormulaView) },
 })

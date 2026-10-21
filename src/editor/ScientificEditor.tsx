@@ -73,7 +73,9 @@ export function ScientificEditor({ content, update, suggestions, language, title
   const replaceTrigger = useCallback((latex: string) => {
     if (!editor || query === null) return
     const { from, to } = editor.state.selection
-    editor.chain().focus().insertContentAt({ from: from - query.length - 1, to }, { type: 'formula', attrs: { latex, focusOnInsert: true } }).run()
+    const insertionPosition = from - query.length - 1
+    editor.chain().focus().insertContentAt({ from: insertionPosition, to }, { type: 'formula', attrs: { latex } }).run()
+    focusInsertedFormula(editor, insertionPosition)
     setQuery(null)
     onSaved?.()
   }, [editor, onSaved, query])
@@ -83,7 +85,13 @@ export function ScientificEditor({ content, update, suggestions, language, title
     editor.commands.setContent(content, { emitUpdate: false })
     editor.commands.setTextSelection(Math.min(selection.from, editor.state.doc.content.size))
   }, [content, editor])
-  const addFormula = useCallback((latex: string) => { editor?.chain().focus().insertContent({ type: 'formula', attrs: { latex, focusOnInsert: true } }).run(); setShowMathMenu(false); onSaved?.() }, [editor, onSaved])
+  const addFormula = useCallback((latex: string) => {
+    if (!editor) return
+    const insertionPosition = editor.state.selection.from
+    editor.chain().focus().insertContent({ type: 'formula', attrs: { latex } }).run()
+    focusInsertedFormula(editor, insertionPosition)
+    setShowMathMenu(false); onSaved?.()
+  }, [editor, onSaved])
   const addDiagram = useCallback(() => editor?.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: [] } } }).run(), [editor])
   const addTable = useCallback(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), [editor])
   const addLink = useCallback(() => {
@@ -132,4 +140,13 @@ export function ScientificEditor({ content, update, suggestions, language, title
       </section>
     </div>
   )
+}
+
+function focusInsertedFormula(editor: NonNullable<ReturnType<typeof useEditor>>, position: number) {
+  window.requestAnimationFrame(() => {
+    const node = editor.view.nodeDOM(position) as HTMLElement | null
+    const mathfield = node?.querySelector('math-field') as (HTMLElement & { executeCommand?: (command: string) => boolean }) | null
+    mathfield?.focus()
+    try { mathfield?.executeCommand?.('moveToNextPlaceholder') } catch { /* The formula stays editable if a command has no placeholder. */ }
+  })
 }

@@ -201,3 +201,41 @@
 .export-dialog > strong { font-family: Manrope, sans-serif; font-size: 14px; font-weight: 650; }
 .export-dialog > span:last-child { color: var(--muted); font-size: 11px; }
 @keyframes export-dialog-in { from { opacity: 0; transform: translateY(7px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Full-window Graphia workspace and responsive navigation recovery. */
+.app-frame { padding: 0; background: radial-gradient(ellipse at 5% 0%, rgb(50 130 246 / 15%), transparent 33%), radial-gradient(ellipse at 92% 100%, rgb(34 211 238 / 8%), transparent 35%), var(--bg); }
+.main-pane { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.sidebar { border-radius: 0; border-block: 0; border-left: 0; background: linear-gradient(180deg, #0b1829, #081020); }
+.brand-mark { border-color: rgb(50 130 246 / 44%); border-radius: 9px; background: linear-gradient(145deg, rgb(50 130 246 / 23%), rgb(34 211 238 / 10%)); cursor: pointer; }
+.brand-mark svg { width: 20px; fill: none; stroke: #48b9ff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.brand-name { font-size: 18px; letter-spacing: -.8px; }
+.brand-name > span { color: #22d3ee; }
+.sidebar.is-collapsed .sidebar-toggle { display: none; }
+.sidebar.is-collapsed .brand-mark { display: grid; }
+.sidebar.is-collapsed .brand-row { justify-content: center; padding: 0; }
+.library-topbar { justify-content: flex-start; gap: 14px; border-bottom-color: var(--border); }
+.library-topbar .breadcrumb { flex: 1; }
+.sidebar-reopen { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.sidebar-reopen:hover { border-color: var(--accent); color: var(--text); }
+.sidebar-reopen svg { width: 15px; height: 15px; }
+.export-backdrop { z-index: 40; background: rgb(3 8 17 / 48%); backdrop-filter: blur(11px); }
+.export-dialog { width: 190px; min-height: 170px; gap: 15px; border-color: rgb(50 130 246 / 35%); border-radius: 20px; background: linear-gradient(150deg, #0d1b2d, #091324); }
+.face-id-save { width: 94px; height: 94px; overflow: visible; color: #3282f6; }
+.face-scan-ring { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100 200; transform-origin: 50% 50%; animation: face-scan 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+.face-corner { fill: none; stroke: #22d3ee; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .82; animation: face-corners 1.6s ease-in-out infinite alternate; }
+.face-eye { fill: #eaf2ff; animation: face-blink 3.4s ease-in-out infinite; }
+.face-smile { fill: none; stroke: #eaf2ff; stroke-width: 2.6; stroke-linecap: round; }
+.export-saving-text { color: #eaf2ff; font-family: Manrope, sans-serif; font-size: 13px; font-weight: 600; }
+@keyframes face-scan { 0% { stroke-dashoffset: 0; transform: rotate(0); } 100% { stroke-dashoffset: -200; transform: rotate(360deg); } }
+@keyframes face-corners { from { opacity: .45; transform: scale(.94); } to { opacity: 1; transform: scale(1.03); } }
+@keyframes face-blink { 0%, 43%, 47%, 100% { transform: scaleY(1); transform-origin: center; } 45% { transform: scaleY(.15); transform-origin: center; } }
+@media print {
+  .sidebar, .topbar, .toolbar, .stage-status, .library-topbar, .export-backdrop { display: none !important; }
+  .app-frame, .main-pane, .document-stage, .editor-shell, .editor-main-column, .paper-scroll, .paper { display: block !important; width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; box-shadow: none !important; }
+  .paper-inner { max-width: none !important; padding: 0 !important; }
+  .document-prose, .document-prose * { color: #111 !important; }
+  body { overflow: visible !important; }
+}
+@media (max-width: 760px) { .sidebar.is-collapsed { flex-basis: 58px; }.sidebar.is-collapsed .brand-name { display: none; }.library-topbar { padding-inline: 10px; } }
+:root h1, :root h2, :root h3, .brand-name, .document-heading input, .page-heading h1 { font-family: Inter, 'DM Sans', sans-serif; }
+@media (max-width: 760px) { .editor-topbar .sidebar-reopen { width: 26px; height: 26px; flex-basis: 26px; }.editor-topbar .topbar-left { gap: 5px; }.editor-topbar .topbar-brand-crumb { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; } }
