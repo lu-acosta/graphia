@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Clock3, Command, Copy, FilePlus2, FileText, Globe2, Grid2X2, HelpCircle, Home, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Pin, Search, Settings2, Sigma, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Clock3, Command, Copy, FilePlus2, FileText, Globe2, Grid2X2, HelpCircle, Home, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Pin, Search, Settings2, Sigma, Sparkles, Star, Trash2, Upload, X, Wrench } from 'lucide-react'
 import katex from 'katex'
 import { type Doc, type Preferences, blankDocument, deleteDocument, getDocuments, loadPreferences, saveDocument, savePreferences } from '../model'
 import { ScientificEditor } from '../editor/ScientificEditor'
+import { diagramSvg, type CanvasData } from '../editor/DiagramNode'
 
 type View = 'home' | 'all' | 'recent' | 'favorites' | 'trash' | 'settings'
 const copy = {
@@ -24,6 +25,7 @@ export default function App() {
   const [menuId, setMenuId] = useState<string | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [exportNotice, setExportNotice] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [importError, setImportError] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
   const t = copy[preferences.language]
@@ -107,7 +109,15 @@ export default function App() {
       rendered.innerHTML = katex.renderToString((formula.getAttribute('data-latex') ?? '').replace(/\\placeholder\{\}/g, '\\square'), { throwOnError: false, output: 'mathml' })
       formula.replaceWith(rendered)
     })
-    exportWindow.document.write(`<!doctype html><html lang="${preferences.language}"><head><meta charset="utf-8"><title>${safeTitle}</title><style>@page{size:A4;margin:22mm}*{box-sizing:border-box}body{margin:0;color:#101828;font:12pt/1.65 Arial,sans-serif}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}table{width:100%;border-collapse:collapse}td,th{border:1px solid #98a2b3;padding:7px}math{font-size:1.1em}.diagram-node{break-inside:avoid}svg{max-width:100%}</style></head><body><h1>${safeTitle}</h1>${parsedContent.body.innerHTML}</body></html>`)
+    parsedContent.querySelectorAll('[data-scientific-diagram]').forEach((diagram) => {
+      let data: CanvasData = { shapes: [] }
+      try { data = JSON.parse(diagram.getAttribute('data-diagram') ?? '{"shapes":[]}') as CanvasData } catch { /* Keep an empty printable canvas for malformed legacy nodes. */ }
+      const printable = parsedContent.createElement('div')
+      printable.className = 'print-diagram'
+      printable.innerHTML = diagramSvg(data)
+      diagram.replaceWith(printable)
+    })
+    exportWindow.document.write(`<!doctype html><html lang="${preferences.language}"><head><meta charset="utf-8"><title>${safeTitle}</title><style>@page{size:A4;margin:22mm}*{box-sizing:border-box}body{margin:0;color:#101828;font:12pt/1.65 Arial,sans-serif}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}table{width:100%;border-collapse:collapse}td,th{border:1px solid #98a2b3;padding:7px}math{font-size:1.1em}.print-diagram{max-width:100%;margin:18px 0;break-inside:avoid}.print-diagram svg{display:block;width:100%;height:auto;border:1px solid #d0d5dd}</style></head><body>${parsedContent.body.innerHTML}</body></html>`)
     exportWindow.document.close()
     exportWindow.onafterprint = () => exportWindow.close()
     setMenuId(null); setExportNotice(true); window.setTimeout(() => { setExportNotice(false); exportWindow.focus(); exportWindow.print() }, 950)
@@ -135,8 +145,8 @@ export default function App() {
 
     <main className="main-pane">
       {current ? <>
-        <header className="topbar editor-topbar"><div className="topbar-left"><button className="sidebar-reopen" aria-label={preferences.language === 'es' ? 'Abrir/cerrar panel lateral' : 'Toggle sidebar'} onClick={() => setSidebarCollapsed(!sidebarCollapsed)}><PanelLeftOpen /></button><button className="back-button" onClick={closeDoc} aria-label={t.back}><ArrowLeft /></button><span className="crumb-divider" /><span className="topbar-brand-crumb">{current.title || t.untitled}</span><span className={`save-indicator ${saveState}`} title={saveState === 'saved' ? t.saved : saveState === 'saving' ? t.saving : t.failed}><SaveMark state={saveState} /><span>{saveState === 'saved' ? (preferences.language === 'es' ? 'Guardado' : 'Saved') : saveState === 'saving' ? (preferences.language === 'es' ? 'Guardando' : 'Saving') : (preferences.language === 'es' ? 'Error' : 'Error')}</span></span></div><div className="topbar-right"><button className="share-button" onClick={() => exportDoc(current)}><Upload /><span>{preferences.language === 'es' ? 'Exportar PDF' : 'Export PDF'}</span></button></div></header>
-        <div className="document-stage"><ScientificEditor key={current.id} title={current.title} onTitleChange={(title) => patchDocument(current.id, { title })} onTitleCommit={() => rename(current.id, current.title)} content={current.content} update={(content) => updateContent(current.id, content)} suggestions={preferences.autocomplete} language={preferences.language} /><div className="stage-status"><span><span className="stage-dot" />{preferences.language === 'es' ? 'GUARDADO LOCALMENTE' : 'SAVED LOCALLY'}</span><span>{preferences.language === 'es' ? 'TODOS LOS CAMBIOS SE GUARDAN EN ESTE DISPOSITIVO' : 'ALL CHANGES SAVED ON THIS DEVICE'}</span><span>100%</span></div></div>
+        <header className="topbar editor-topbar"><div className="topbar-left"><button className={`tools-toggle${toolsOpen?' is-active':''}`} aria-label={preferences.language === 'es' ? 'Herramientas' : 'Tools'} aria-expanded={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)}><Wrench size={16}/><span>{preferences.language === 'es'?'Herramientas':'Tools'}</span></button><button className="back-button" onClick={closeDoc} aria-label={t.back}><ArrowLeft /></button><span className="crumb-divider" /><span className="topbar-brand-crumb">{current.title || t.untitled}</span><span className={`save-indicator ${saveState}`} title={saveState === 'saved' ? t.saved : saveState === 'saving' ? t.saving : t.failed}><SaveMark state={saveState} /><span>{saveState === 'saved' ? (preferences.language === 'es' ? 'Guardado' : 'Saved') : saveState === 'saving' ? (preferences.language === 'es' ? 'Guardando' : 'Saving') : (preferences.language === 'es' ? 'Error' : 'Error')}</span></span></div><div className="topbar-right"><button className="share-button" onClick={() => exportDoc(current)}><Upload /><span>{preferences.language === 'es' ? 'Exportar PDF' : 'Export PDF'}</span></button></div></header>
+        <div className="document-stage"><ScientificEditor key={current.id} title={current.title} onTitleChange={(title) => patchDocument(current.id, { title })} onTitleCommit={() => rename(current.id, current.title)} content={current.content} update={(content) => updateContent(current.id, content)} suggestions={preferences.autocomplete} language={preferences.language} toolsOpen={toolsOpen} toggleTools={() => setToolsOpen(!toolsOpen)} /><div className="stage-status"><span><span className="stage-dot" />{preferences.language === 'es' ? 'GUARDADO LOCALMENTE' : 'SAVED LOCALLY'}</span><span>{preferences.language === 'es' ? 'TODOS LOS CAMBIOS SE GUARDAN EN ESTE DISPOSITIVO' : 'ALL CHANGES SAVED ON THIS DEVICE'}</span><span>100%</span></div></div>
       </> : <>
         <header className="topbar library-topbar"><button className="sidebar-reopen" aria-label={preferences.language === 'es' ? 'Abrir/cerrar panel lateral' : 'Toggle sidebar'} onClick={() => setSidebarCollapsed(!sidebarCollapsed)}><PanelLeftOpen /></button><div className="topbar-right"><button className="topbar-help" title="Keyboard shortcuts" onClick={() => setShowPalette(true)}><HelpCircle /></button></div></header>
         {view === 'settings' ? <SettingsView preferences={preferences} setPreferences={setPreferences} t={t} /> : <div className="library-page">

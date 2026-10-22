@@ -47,6 +47,15 @@
 .profile-chevron { width: 13px; margin-left: auto; color: var(--subtle); }
 .sidebar.is-collapsed .brand-name, .sidebar.is-collapsed .sidebar-toggle, .sidebar.is-collapsed .new-document > span, .sidebar.is-collapsed .new-document kbd, .sidebar.is-collapsed .sidebar-group-label, .sidebar.is-collapsed .nav-item > span:not(.active-rail), .sidebar.is-collapsed .sidebar-note, .sidebar.is-collapsed .profile-name, .sidebar.is-collapsed .profile-chevron { display: none; }
 .sidebar.is-collapsed .brand-row { justify-content: center; padding: 0; }
+.sidebar.is-collapsed { flex-basis: 56px; padding: 18px 7px 12px; }
+.sidebar.is-collapsed .brand-row { height: 32px; margin-bottom: 20px; }
+.sidebar.is-collapsed .brand-mark { width: 28px; height: 28px; flex-basis: 28px; }
+.sidebar.is-collapsed .new-document { width: 40px; height: 38px; align-self: center; margin-bottom: 18px; border-radius: 10px; }
+.sidebar.is-collapsed .side-nav { align-items: center; width: 100%; }
+.sidebar.is-collapsed .nav-item { width: 40px; height: 38px; justify-content: center; padding: 0; border-radius: 10px; }
+.sidebar.is-collapsed .nav-item svg { width: 15px; height: 15px; }
+.sidebar.is-collapsed .nav-item .active-rail { left: -7px; }
+.sidebar.is-collapsed .sidebar-bottom .nav-item { align-self: center; }
 .sidebar.is-collapsed .new-document { justify-content: center; padding: 0; }
 .sidebar.is-collapsed .nav-item { justify-content: center; padding: 0; }
 .sidebar.is-collapsed .nav-item .active-rail { left: -10px; }
