@@ -8,37 +8,42 @@ type Connection = { id: string; from: string; fromNode: number; to: string; toNo
 export type CanvasData = { shapes: Shape[]; connections?: Connection[]; graph?: { expression: string } }
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-export function graphGeometry(expression: string, zoom = 1) {
-  const source = expression.replace(/\s+/g, '').replace(/[−–]/g, '-')
-  if (!/^[\dx.+\-*/^(),a-z]+$/i.test(source) || /(?:window|document|constructor|prototype|eval|function)/i.test(source)) return { path: '', xAxis: 240, yAxis: 220 }
+export function graphGeometry(expression: string, zoom = 1, pan = { x: 0, y: 0 }) {
+  const source = expression.replace(/\s+/g, '').replace(/[−–]/g, '-').replace(/π/g, 'pi')
+  const empty = () => ({ path: '', xAxis: 240 + pan.x, yAxis: 120 + pan.y, scale: 12 * zoom, gridX: [] as number[], gridY: [] as number[], xTicks: [] as {x:number;value:number}[], yTicks: [] as {y:number;value:number}[] })
+  if (!/^[\dx.+\-*/^(),a-z]+$/i.test(source) || /(?:window|document|constructor|prototype|eval|function)/i.test(source)) return empty()
   const allowedNames = new Set(['x','pi','e','sin','cos','tan','sqrt','abs','exp','log'])
-  if ((source.match(/[a-z]+/gi) ?? []).some((name) => !allowedNames.has(name.toLowerCase()))) return { path: '', xAxis: 240, yAxis: 220 }
+  if ((source.match(/[a-z]+/gi) ?? []).some((name) => !allowedNames.has(name.toLowerCase()))) return empty()
   let js = source.replace(/\bpi\b/gi, 'Math.PI').replace(/\be\b/g, 'Math.E')
   js = js.replace(/\b(sin|cos|tan|sqrt|abs|exp|log)\(/gi, 'Math.$1(')
   js = js.replace(/(\d|x|\)|Math\.PI|Math\.E)(?=(?:x|\(|Math\.))/gi, '$1*')
   js = js.replace(/\^/g, '**')
   let fn: (x: number) => number
-  try { fn = new Function('x', `"use strict"; return (${js})`) as (x: number) => number } catch { return { path: '', xAxis: 240, yAxis: 220 } }
-  const domain = 10 / zoom
+  try { fn = new Function('x', `"use strict"; return (${js})`) as (x: number) => number } catch { return empty() }
+  const scale = 12 * zoom
+  const minX = (-210 - pan.x) / scale
+  const maxX = (210 - pan.x) / scale
   const samples: {x:number;y:number}[] = []
   for (let i = 0; i <= 400; i++) {
-    const x = -domain + (2 * domain * i) / 400
+    const x = minX + ((maxX - minX) * i) / 400
     let y: number
     try { y = fn(x) } catch { y = NaN }
     samples.push({x,y:Number.isFinite(y)&&Math.abs(y)<1e6?y:NaN})
   }
   const values=samples.filter(p=>Number.isFinite(p.y)).map(p=>p.y)
-  if(!values.length)return {path:'',xAxis:240,yAxis:220}
-  let minY=Math.min(...values),maxY=Math.max(...values)
-  if(Math.abs(maxY-minY)<1e-8){minY-=1;maxY+=1}
-  const pad=(maxY-minY)*.08
-  minY-=pad;maxY+=pad
-  const toX=(x:number)=>30+(x+domain)/(2*domain)*420
-  const toY=(y:number)=>220-(y-minY)/(maxY-minY)*200
+  if(!values.length)return empty()
+  const toX=(x:number)=>240+pan.x+x*scale
+  const toY=(y:number)=>120+pan.y-y*scale
   let open = false
   const path=samples.map(({x,y})=>{if(!Number.isFinite(y)){open=false;return ''}const result=`${open?'L':'M'}${toX(x).toFixed(2)},${toY(y).toFixed(2)}`;open=true;return result}).join(' ')
-  const yAxis=minY<=0&&maxY>=0?toY(0):minY>0?220:20
-  return {path,xAxis:240,yAxis}
+  const xAxis=240+pan.x, yAxis=120+pan.y
+  const firstX=Math.ceil(-xAxis/scale),lastX=Math.floor((480-xAxis)/scale)
+  const firstY=Math.ceil((yAxis-240)/scale),lastY=Math.floor(yAxis/scale)
+  const gridX=Array.from({length:Math.max(0,Math.min(481,lastX-firstX+1))},(_,i)=>xAxis+(firstX+i)*scale)
+  const gridY=Array.from({length:Math.max(0,Math.min(241,lastY-firstY+1))},(_,i)=>yAxis-(firstY+i)*scale)
+  const xTicks=Array.from({length:Math.max(0,Math.min(80,lastX-firstX+1))},(_,i)=>{const value=firstX+i;return{x:xAxis+value*scale,value}}).filter(t=>t.value%5===0)
+  const yTicks=Array.from({length:Math.max(0,Math.min(80,lastY-firstY+1))},(_,i)=>{const value=firstY+i;return{y:yAxis-value*scale,value}}).filter(t=>t.value%5===0)
+  return {path,xAxis,yAxis,scale,gridX,gridY,xTicks,yTicks}
 }
 export function graphPath(expression: string, zoom = 1) { return graphGeometry(expression,zoom).path }
 export function diagramSvg(data: CanvasData) {
@@ -61,7 +66,9 @@ export function diagramSvg(data: CanvasData) {
     if (s.kind === 'cylinder') return `<g ${common}><path d="M-23 -16 A23 8 0 0 1 23 -16 V16 A23 8 0 0 1 -23 16 Z" fill="#dce9fa" stroke="#3982f6" stroke-width="2"/><ellipse cy="-16" rx="23" ry="8" fill="#f4f8ff" stroke="#3982f6" stroke-width="2"/><path d="M-23 16 A23 8 0 0 0 23 16" fill="none" stroke="#3982f6" stroke-width="2"/><text text-anchor="middle" y="5" fill="#172033" font-size="12">${label}</text></g>`
     return `<g ${common}><rect x="-30" y="-22" width="60" height="44" rx="5" fill="#dce9fa" stroke="#3982f6" stroke-width="2"/><text text-anchor="middle" y="5" fill="#172033" font-size="13">${label}</text></g>`
   }).join('')
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 240"><defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#8492a6" opacity=".35"/></pattern><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="#3982f6"/></marker></defs>${data.graph ? `<rect width="480" height="240" fill="#fff"/><rect width="480" height="240" fill="url(#dots)"/><line x1="30" y1="${geometry?.yAxis ?? 220}" x2="450" y2="${geometry?.yAxis ?? 220}" stroke="#8592a3"/><line x1="${geometry?.xAxis ?? 240}" y1="20" x2="${geometry?.xAxis ?? 240}" y2="220" stroke="#8592a3"/>` : ''}${graph}${shapes}</svg>`
+  const grid = geometry ? `${geometry.gridX.map((x) => `<line x1="${x}" y1="0" x2="${x}" y2="240" stroke="#8492a6" stroke-width=".6" opacity=".22"/>`).join('')}${geometry.gridY.map((y) => `<line x1="0" y1="${y}" x2="480" y2="${y}" stroke="#8492a6" stroke-width=".6" opacity=".22"/>`).join('')}` : ''
+  const ticks = geometry ? `${geometry.xTicks.map(({x,value})=>`<text x="${x+3}" y="${geometry.yAxis+13}" fill="#66758a" font-size="8">${value}</text>`).join('')}${geometry.yTicks.map(({y,value})=>`<text x="${geometry.xAxis+4}" y="${y-3}" fill="#66758a" font-size="8">${value}</text>`).join('')}` : ''
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 240"><defs><clipPath id="graph-clip"><rect width="480" height="240"/></clipPath><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="#3982f6"/></marker></defs>${data.graph ? `<rect width="480" height="240" fill="#fff"/>${grid}<g clip-path="url(#graph-clip)"><line x1="0" y1="${geometry?.yAxis ?? 120}" x2="480" y2="${geometry?.yAxis ?? 120}" stroke="#66758a"/><line x1="${geometry?.xAxis ?? 240}" y1="0" x2="${geometry?.xAxis ?? 240}" y2="240" stroke="#66758a"/>${ticks}${graph}</g>` : ''}${shapes}</svg>`
 }
 
 function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
@@ -84,12 +91,6 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     return () => document.removeEventListener('pointerdown', clearSelection)
   }, [])
   const persist = (shapes: Shape[], graph = data.graph, connections = data.connections ?? []) => updateAttributes({ data: { shapes, connections, ...(graph ? { graph } : {}) } })
-  const add = (kind: ShapeKind) => {
-    const labels: Record<ShapeKind, string> = { block: 'm', arrow: 'F', label: 'texto', pulley: 'm', disk: 'I', sphere: 'm', ring: 'R', cylinder: 'm', rod: 'L', support: '', lever: 'τ', incline: 'θ', spring: 'k', rotation: 'ω', radius: 'r', diameter: 'd' }
-    const index = data.shapes.length
-    const shape: Shape = { id: crypto.randomUUID(), kind, x: 104 + (index % 4) * 92, y: 72 + (Math.floor(index / 4) % 2) * 88, text: labels[kind], angle: kind === 'arrow' ? -90 : 0 }
-    persist([...data.shapes, shape]); setActive(shape.id)
-  }
   const move = (event: React.PointerEvent<SVGSVGElement>) => {
     if (panning) {
       const bounds=event.currentTarget.getBoundingClientRect()
@@ -123,16 +124,12 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const updateText = (id: string, text: string) => persist(data.shapes.map((shape) => shape.id === id ? { ...shape, text } : shape))
   return (
     <NodeViewWrapper ref={wrapperRef} className={`diagram-node${data.graph ? ' function-plot' : ' physics-scene'}`}>
-      {data.graph && <><div className="diagram-head"><span><span className="diagram-dot" />y = {data.graph.expression}</span><div><button onClick={() => setZoom((z) => Math.max(.6, z - .2))} aria-label="Alejar">−</button><button onClick={() => setZoom((z) => Math.min(2.4, z + .2))} aria-label="Acercar">+</button><button onClick={() => setExpanded(!expanded)} aria-label="Expandir gráfica">⤢</button><button onClick={deleteNode} aria-label="Quitar gráfica">×</button></div></div></>}
-      {data.graph && <div className="diagram-actions">
-        <button onClick={() => add('block')}>□ <span>Bloque</span></button>
-        <button onClick={() => add('arrow')}>↗ <span>Vector</span></button>
-        <button onClick={() => add('label')}>T <span>Texto</span></button>
-        {active && <button className="remove-shape" onClick={() => { persist(data.shapes.filter((shape) => shape.id !== active)); setActive(null) }}>Remove selected</button>}
-      </div>}
-      <svg className={`${expanded ? 'diagram-expanded' : ''}${panning ? ' is-panning' : ''}`} viewBox="0 0 480 240" role="img" aria-label={data.graph ? 'Gráfica de función' : 'Elementos de física sin marco'} onPointerDown={(event)=>{if(data.graph && !(event.target as Element).closest('.shape')){event.currentTarget.setPointerCapture(event.pointerId);setPanning({clientX:event.clientX,clientY:event.clientY,panX:pan.x,panY:pan.y})}}} onPointerMove={move} onPointerUp={(event)=>{if(panning)setPanning(null);finishAnchor(event)}} onPointerLeave={() => {setDragging(null);setDragPreview(null);setDraggingAnchor(null);setAnchorCursor(null);setPanning(null)}}>
+      {data.graph && <div className="diagram-head"><span><span className="diagram-dot" />y = {data.graph.expression}</span><div><button onClick={() => setZoom((z) => Math.max(.6, z - .2))} aria-label="Alejar">−</button><button onClick={() => setZoom((z) => Math.min(2.4, z + .2))} aria-label="Acercar">+</button><button onClick={() => {setPan({x:0,y:0});setZoom(1)}} aria-label="Centrar gráfica">⌂</button><button onClick={() => setExpanded(!expanded)} aria-label="Expandir gráfica">⤢</button><button onClick={deleteNode} aria-label="Quitar gráfica">×</button></div></div>}
+      {active && !data.graph && <div className="diagram-actions"><button className="remove-shape" onClick={() => { persist(data.shapes.filter((shape) => shape.id !== active)); setActive(null) }}>Quitar objeto</button></div>}
+      {data.graph && <div className="graph-hint">Arrastrá el plano para moverlo · usá la rueda para acercar o alejar</div>}
+      <svg className={`${expanded ? 'diagram-expanded' : ''}${panning ? ' is-panning' : ''}`} viewBox="0 0 480 240" role="img" aria-label={data.graph ? 'Gráfica de función' : 'Elementos de física sin marco'} onWheel={(event)=>{if(data.graph){event.preventDefault();setZoom(z=>Math.max(.6,Math.min(2.4,z*(event.deltaY<0?1.12:.89))))}}} onPointerDown={(event)=>{if(data.graph && !(event.target as Element).closest('.shape')){event.currentTarget.setPointerCapture(event.pointerId);setPanning({clientX:event.clientX,clientY:event.clientY,panX:pan.x,panY:pan.y})}}} onPointerMove={move} onPointerUp={(event)=>{if(panning)setPanning(null);finishAnchor(event)}} onPointerLeave={() => {setDragging(null);setDragPreview(null);setDraggingAnchor(null);setAnchorCursor(null);setPanning(null)}}>
         <defs><pattern id="grid-dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="currentColor" opacity=".18" /></pattern><marker id="vector-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" /></marker></defs>
-        {data.graph && <g className="graph-plane" transform={`translate(${pan.x} ${pan.y})`}><rect width="480" height="240" fill="url(#grid-dots)"/><>{(() => { const geometry=graphGeometry(data.graph!.expression,zoom); return <><line x1="30" y1={geometry.yAxis} x2="450" y2={geometry.yAxis} className="diagram-axis"/><line x1={geometry.xAxis} y1="20" x2={geometry.xAxis} y2="220" className="diagram-axis"/><text x="452" y={geometry.yAxis-5} className="axis-label">x</text><text x={geometry.xAxis+5} y="18" className="axis-label">y</text><path d={geometry.path} className="function-graph"/></> })()}</></g>}
+        {data.graph && <g className="graph-plane">{(() => { const geometry=graphGeometry(data.graph!.expression,zoom,pan); return <>{geometry.gridX.map((x,i)=><line key={`gx${i}`} x1={x} y1="0" x2={x} y2="240" className={Math.round((x-geometry.xAxis)/geometry.scale)%5===0?'graph-grid major':'graph-grid'}/>)}{geometry.gridY.map((y,i)=><line key={`gy${i}`} x1="0" y1={y} x2="480" y2={y} className={Math.round((geometry.yAxis-y)/geometry.scale)%5===0?'graph-grid major':'graph-grid'}/>)}<line x1="0" y1={geometry.yAxis} x2="480" y2={geometry.yAxis} className="diagram-axis"/><line x1={geometry.xAxis} y1="0" x2={geometry.xAxis} y2="240" className="diagram-axis"/>{geometry.xTicks.map(t=><text key={`xt${t.value}`} x={t.x+3} y={geometry.yAxis+13} className="axis-label">{t.value}</text>)}{geometry.yTicks.map(t=><text key={`yt${t.value}`} x={geometry.xAxis+4} y={t.y-3} className="axis-label">{t.value}</text>)}<text x="464" y={geometry.yAxis-5} className="axis-label">x</text><text x={geometry.xAxis+5} y="11" className="axis-label">y</text><path d={geometry.path} className="function-graph"/></> })()}</g>}
         {currentShapes.filter((shape) => (shape.kind as string) !== 'rope').map((shape) => <g key={shape.id} className={`shape ${active === shape.id ? 'active' : ''}`} onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id); setDragging(shape.id); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId) }}>
           <rect x={shape.x-48} y={shape.y-36} width="96" height="72" fill="transparent" className="shape-hit-area" />
           {shape.kind === 'block' && <><rect x={shape.x - 34} y={shape.y - 23} width="68" height="46" rx="7" className="diagram-block" /><foreignObject x={shape.x - 22} y={shape.y - 10} width="44" height="22"><input className="shape-label" value={shape.text} aria-label="Block label" onPointerDown={(event) => { setActive(shape.id); setDragging(shape.id); (event.currentTarget.closest('svg') as SVGSVGElement | null)?.setPointerCapture(event.pointerId) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject></>}
@@ -159,7 +156,8 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
         </g>)}
         {draggingAnchor&&anchorCursor&&<><line x1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][0]} y1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][1]} x2={anchorCursor[0]} y2={anchorCursor[1]} className="anchor-drag-line"/><circle cx={anchorCursor[0]} cy={anchorCursor[1]} r="7" className="anchor-cursor"/></>}
       </svg>
-      {data.graph && <div className="diagram-foot">Arrastrá los objetos; los vectores se adhieren a los puntos de anclaje.</div>}
+      {!data.graph && data.shapes.length===0 && <div className="physics-empty-note">Elegí una pieza en Herramientas → Física para empezar el diagrama.</div>}
+      {data.graph && <div className="diagram-foot">Escala igual en ambos ejes · el plano se puede mover y centrar.</div>}
     </NodeViewWrapper>
   )
 }

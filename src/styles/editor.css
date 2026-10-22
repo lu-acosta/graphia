@@ -153,6 +153,17 @@
 .physics-scene > svg { display:block; width:100%; height:auto; overflow:visible; background:transparent; }
 .function-plot { width:100%; max-width:600px; margin:18px 0 24px; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:linear-gradient(150deg,var(--surface),var(--bg-raised)); }
 .function-plot > svg { display:block; width:100%; height:auto; }
+.tool-mode-switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border:1px solid var(--border); border-radius:9px; background:var(--bg-raised); }
+.tool-mode-switch button { min-height:32px; border:0; border-radius:6px; background:transparent; color:var(--text-muted); cursor:pointer; font-size:11px; }
+.tool-mode-switch button[aria-selected='true'] { background:var(--surface-raised); color:var(--text); box-shadow:0 1px 4px rgb(0 0 0 / 22%); }
+.function-input button:disabled { opacity:.45; cursor:not-allowed; }
+.function-error { margin:0; color:var(--red); font-size:10px; }
+.graph-hint { padding:6px 10px 0; color:var(--text-muted); font-size:9px; }
+.physics-empty-note { padding:4px 0; color:var(--text-muted); font-size:10px; }
+.graph-grid { stroke:var(--text-muted); stroke-width:.6; opacity:.17; pointer-events:none; }
+.graph-grid.major { opacity:.3; }
+.graph-plane { cursor:grab; touch-action:none; }
+.diagram-node > svg.is-panning .graph-plane { cursor:grabbing; }
 @media(max-width:760px) { .editor-layout.tools-open { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) minmax(190px,35vh); }.tools-panel { border-left:0; border-top:1px solid var(--border); }.physics-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }.physics-grid button { justify-content:center; flex-direction:column; text-align:center; } }
 .math-menu-anchor { position: relative; }
 .math-insert-menu { position: absolute; z-index: 12; top: calc(100% + 10px); left: 0; width: min(370px, calc(100vw - 30px)); padding: 12px; border: 1px solid var(--border-strong); border-radius: 13px; background: var(--surface-2); box-shadow: var(--panel-shadow); }

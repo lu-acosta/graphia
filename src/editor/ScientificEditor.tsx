@@ -9,9 +9,9 @@ import Image from '@tiptap/extension-image'
 import { NodeSelection } from '@tiptap/pm/state'
 import { Bold, Code2, Heading1, Heading2, Italic, Link2, List, ListOrdered, Minus, Plus, Redo2, Sigma, Strikethrough, Table2, Underline as UnderlineIcon, Undo2, X, Wrench, Orbit, Circle, CircleDot, Disc3, Cylinder, Ruler, Triangle, MoveUpRight, Activity } from 'lucide-react'
 import { FormulaNode } from '../math/FormulaNode'
-import { DiagramNode, type ShapeKind } from './DiagramNode'
+import { DiagramNode, graphGeometry, type ShapeKind } from './DiagramNode'
 
-type Props = { content: string; update: (html: string) => void; suggestions: boolean; language: 'es' | 'en'; title: string; onTitleChange: (title: string) => void; onTitleCommit: () => void; onSaved?: () => void; toolsOpen: boolean; toggleTools: () => void }
+type Props = { content: string; update: (html: string) => void; suggestions: boolean; language: 'es' | 'en'; title: string; onTitleChange: (title: string) => void; onTitleCommit: () => void; onSaved?: () => void; saveStatus?: 'saved'|'saving'|'error'; toolsOpen: boolean; toggleTools: () => void }
 const labels = {
   es: { paragraph: 'Texto normal', heading: 'Título', formula: 'Fórmula', table: 'Tabla', link: 'Añadir enlace' },
   en: { paragraph: 'Paragraph', heading: 'Heading', formula: 'Formula', table: 'Table', link: 'Add link' },
@@ -44,7 +44,7 @@ const matchesCommand = (command: typeof commands[number], query: string, languag
 type MathCompletionField = HTMLElement & { focus: () => void; insert: (latex: string, options?: { selectionMode?: string }) => boolean; executeCommand: (command: string) => boolean }
 type MathQueryEvent = CustomEvent<{ query: string | null; field: MathCompletionField | null }>
 
-export function ScientificEditor({ content, update, suggestions, language, title, onTitleChange, onTitleCommit, onSaved, toolsOpen, toggleTools }: Props) {
+export function ScientificEditor({ content, update, suggestions, language, title, onTitleChange, onTitleCommit, onSaved, saveStatus='saved', toolsOpen, toggleTools }: Props) {
   const text = labels[language]
   const [query, setQuery] = useState<string | null>(null)
   const [mathCompletion, setMathCompletion] = useState<{ query: string; field: MathCompletionField } | null>(null)
@@ -180,7 +180,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
   return (
     <div className={`editor-shell editor-layout${toolsOpen ? ' tools-open' : ''}`}>
       <section className="editor-main-column">
-        <div className="document-title-row"><div className="document-heading"><input aria-label={language === 'es' ? 'Título del documento' : 'Document title'} value={title} onChange={(event) => onTitleChange(event.target.value)} onBlur={onTitleCommit} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} /><span>{language === 'es' ? 'Todos los cambios guardados' : 'All changes saved'}</span></div></div>
+        <div className="document-title-row"><div className="document-heading"><input aria-label={language === 'es' ? 'Título del documento' : 'Document title'} value={title} onChange={(event) => onTitleChange(event.target.value)} onBlur={onTitleCommit} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} /><span>{saveStatus==='saving'?(language==='es'?'Guardando cambios…':'Saving changes…'):saveStatus==='error'?(language==='es'?'No se pudieron guardar los cambios':'Changes could not be saved'):(language==='es'?'Guardado en este dispositivo':'Saved on this device')}</span></div></div>
         <div className="toolbar bottom-toolbar" role="toolbar" aria-label={language === 'es' ? 'Formato del documento' : 'Document formatting'}>
           <div className="toolbar-group"><button className="tool-icon" aria-label="Undo" title="Undo" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}><Undo2 /></button><button className="tool-icon" aria-label="Redo" title="Redo" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}><Redo2 /></button></div>
           <span className="toolbar-divider" />
@@ -208,12 +208,13 @@ const physicsTools: { kind: ShapeKind; es: string; en: string; icon: typeof Circ
 function ToolsPanel({ language, addDiagram, insertGraph, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind,angleValue?:number)=>void;insertGraph:(expression:string)=>void;close:()=>void}) {
   const [expression,setExpression] = useState('sin(x)')
   const [angle,setAngle] = useState(30)
+  const [toolMode,setToolMode] = useState<'functions'|'physics'>('functions')
   const es=language==='es'
+  const validExpression=Boolean(graphGeometry(expression).path)
   return <aside className="tools-panel">
     <header><div><Wrench size={16}/><strong>{es?'Herramientas':'Tools'}</strong></div><button aria-label={es?'Cerrar herramientas':'Close tools'} onClick={close}><X size={16}/></button></header>
-    <section className="tools-section"><h3>{es?'Funciones matemáticas':'Mathematical functions'}</h3><label className="function-input"><span>f(x) =</span><input value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')insertGraph(expression)}} placeholder="x^2"/><button onClick={()=>insertGraph(expression)}><Activity size={15}/>{es?'Graficar':'Graph'}</button></label><p className="tools-hint">{es?'Usá x, + − × / ^ y sin, cos, tan, sqrt, log.':'Use x, + − × / ^ and sin, cos, tan, sqrt, log.'}</p></section>
-    <section className="tools-section"><h3>{es?'Física':'Physics'}</h3><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div><label className="angle-control">{es?'Ángulo del plano':'Surface angle'} <input type="range" min="5" max="85" value={angle} onChange={e=>setAngle(+e.target.value)}/><span>{angle}°</span></label><button className="incline-insert" onClick={()=>addDiagram('incline',angle)}>{es?'Insertar plano con ángulo':'Insert angled plane'} {angle}°</button></section>
-    <section className="tools-section"><h3>{es?'Diagrama':'Diagram'}</h3><p className="tools-hint">{es?'Seleccioná un objeto para agregarlo al diagrama seleccionado. Los vectores se ajustan a los nodos magnéticos.':'Add objects to the selected diagram. Vectors snap to magnetic anchor points.'}</p><button className="new-diagram-tool" onClick={()=>addDiagram(undefined)}>{es?'Nuevo diagrama físico':'New physics diagram'}</button></section>
+    <div className="tool-mode-switch" role="tablist" aria-label={es?'Tipo de herramienta':'Tool type'}><button role="tab" aria-selected={toolMode==='functions'} onClick={()=>setToolMode('functions')}>{es?'Funciones':'Functions'}</button><button role="tab" aria-selected={toolMode==='physics'} onClick={()=>setToolMode('physics')}>{es?'Física':'Physics'}</button></div>
+    {toolMode==='functions' ? <section className="tools-section"><h3>{es?'Graficar una función':'Graph a function'}</h3><p className="tools-hint">{es?'Escribí una expresión y se insertará como un plano interactivo en el documento.':'Enter an expression to insert an interactive coordinate plane into the document.'}</p><label className="function-input"><span>f(x) =</span><input aria-label={es?'Expresión de la función':'Function expression'} aria-invalid={!validExpression} value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&validExpression)insertGraph(expression)}} placeholder="2x^2"/><button onClick={()=>insertGraph(expression)} disabled={!validExpression}><Activity size={15}/>{es?'Graficar':'Graph'}</button></label>{!validExpression&&<p className="function-error" role="status">{es?'Revisá la expresión; no se pudo interpretar.':'Check the expression; it could not be parsed.'}</p>}<p className="tools-hint">{es?'Ejemplos: 2x^2, sin(x), (x+1)(x-2). Usá x, π, e, +, −, ×, /, ^, sqrt, abs, exp y log.':'Examples: 2x^2, sin(x), (x+1)(x-2). Use x, π, e, +, −, ×, /, ^, sqrt, abs, exp and log.'}</p></section> : <><section className="tools-section"><h3>{es?'Elementos de física':'Physics elements'}</h3><p className="tools-hint">{es?'Insertá un objeto y arrastralo libremente. Seleccionalo para moverlo o usar sus puntos de anclaje magnéticos.':'Insert an object and drag it freely. Select it to move it or use its magnetic anchor points.'}</p><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div></section><section className="tools-section"><h3>{es?'Plano inclinado':'Inclined plane'}</h3><label className="angle-control">{es?'Ángulo de la superficie':'Surface angle'} <input type="range" min="5" max="85" value={angle} onChange={e=>setAngle(+e.target.value)}/><span>{angle}°</span></label><button className="incline-insert" onClick={()=>addDiagram('incline',angle)}>{es?'Insertar plano inclinado':'Insert inclined plane'} · {angle}°</button><button className="new-diagram-tool" onClick={()=>addDiagram(undefined)}>{es?'Nuevo diagrama físico':'New physics diagram'}</button></section></>}
   </aside>
 }
 
