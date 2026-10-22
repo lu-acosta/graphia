@@ -132,6 +132,10 @@
 .diagram-anchor { fill:#fff; stroke:#3982f6; stroke-width:2; }
 .diagram-anchor { cursor:crosshair; pointer-events:all; }
 .diagram-anchor.is-dragging,.anchor-cursor { fill:#36bdf5; stroke:#0d5fbd; stroke-width:2.5; }
+.vector-rotate-handle { fill:#36bdf5; stroke:#0d5fbd; stroke-width:2; cursor:crosshair; pointer-events:all; }
+.diagram-connection { pointer-events:none; }
+.connection-line { stroke:#36bdf5; stroke-width:2.5; stroke-linecap:round; }
+.connection-joint { fill:#fff; stroke:#0d5fbd; stroke-width:2; }
 .anchor-drag-line,.physics-connection { fill:none; stroke:#667f9f; stroke-width:3; stroke-linecap:round; stroke-dasharray:0; pointer-events:none; }
 .physics-connection { stroke:#b87837; stroke-width:4; }
 .physics-object-drawing { pointer-events:none; }
