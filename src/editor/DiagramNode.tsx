@@ -11,18 +11,22 @@ const esc = (value: string) => value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;',
 export function graphPath(expression: string, zoom = 1) {
   const source = expression.replace(/\s+/g, '').replace(/[−–]/g, '-')
   if (!/^[\dx.+\-*/^(),a-z]+$/i.test(source) || /(?:window|document|constructor|prototype|eval|function)/i.test(source)) return ''
+  const allowedNames = new Set(['x','pi','e','sin','cos','tan','sqrt','abs','exp','log'])
+  if ((source.match(/[a-z]+/gi) ?? []).some((name) => !allowedNames.has(name.toLowerCase()))) return ''
   let js = source.replace(/\bpi\b/gi, 'Math.PI').replace(/\be\b/g, 'Math.E')
-  // Accept conventional math notation such as 2x, 2(x+1), and xsin(x).
-  js = js.replace(/(\d|x|\)|Math\.PI|Math\.E)(?=(?:x|\(|Math\.)|\b(?:sin|cos|tan|sqrt|abs|exp|log)\b)/gi, '$1*')
-  js = js.replace(/\b(sin|cos|tan|sqrt|abs|exp|log)\(/gi, 'Math.$1(').replace(/\^/g, '**')
+  // Accept conventional math notation such as 2x, 2(x+1), and x sin(x).
+  js = js.replace(/\b(sin|cos|tan|sqrt|abs|exp|log)\(/gi, 'Math.$1(')
+  js = js.replace(/(\d|x|\)|Math\.PI|Math\.E)(?=(?:x|\(|Math\.|Math\.sin\(|Math\.cos\(|Math\.tan\(|Math\.sqrt\(|Math\.abs\(|Math\.exp\(|Math\.log\())/gi, '$1*')
+  js = js.replace(/\^/g, '**')
   let fn: (x: number) => number
   try { fn = new Function('x', `"use strict"; return (${js})`) as (x: number) => number } catch { return '' }
   const points: string[] = []
+  const scale = 24 * zoom
   for (let px = 0; px <= 480; px += 2) {
-    const x = ((px - 240) / (24 / zoom))
+    const x = (px - 84) / scale
     let y: number
     try { y = fn(x) } catch { y = NaN }
-    const py = 120 - y * (24 / zoom)
+    const py = 204 - y * scale
     points.push(Number.isFinite(py) && Math.abs(py) < 1200 ? `${px},${py.toFixed(2)}` : 'break')
   }
   let open = false
@@ -31,7 +35,7 @@ export function graphPath(expression: string, zoom = 1) {
 export function diagramSvg(data: CanvasData) {
   const graph = data.graph ? `<path d="${graphPath(data.graph.expression)}" fill="none" stroke="#36bdf5" stroke-width="3"/>` : ''
   const byId = new Map(data.shapes.map((shape) => [shape.id, shape]))
-  const anchors = (s: Shape): [number,number][] => [[s.x-32,s.y],[s.x+32,s.y],[s.x,s.y-22],[s.x,s.y+22]]
+  const anchors = (s: Shape): [number,number][] => s.kind === 'arrow' ? [[s.x,s.y]] : s.kind === 'rope' ? [[s.x-42,s.y-3],[s.x+42,s.y]] : [[s.x-32,s.y],[s.x+32,s.y],[s.x,s.y-22],[s.x,s.y+22]]
   const connections = (data.connections ?? []).map((c) => { const a=byId.get(c.from), b=byId.get(c.to); if(!a||!b)return ''; const p=anchors(a)[c.fromNode],q=anchors(b)[c.toNode]; return `<path d="M${p[0]} ${p[1]} L${q[0]} ${q[1]}" fill="none" stroke="#526987" stroke-width="3" stroke-linecap="round"/>` }).join('')
   const shapes = data.shapes.map((s) => {
     const label = esc(s.text)
@@ -59,6 +63,7 @@ function DiagramView({ node, updateAttributes, selected, deleteNode }: NodeViewP
   const [dragging, setDragging] = useState<string | null>(null)
   const [draggingAnchor, setDraggingAnchor] = useState<{shapeId:string;node:number}|null>(null)
   const [anchorCursor, setAnchorCursor] = useState<[number,number]|null>(null)
+  const [dragPreview, setDragPreview] = useState<{id:string;x:number;y:number}|null>(null)
   const [zoom, setZoom] = useState(1)
   const [expanded, setExpanded] = useState(false)
   const data = node.attrs.data as CanvasData
@@ -71,46 +76,43 @@ function DiagramView({ node, updateAttributes, selected, deleteNode }: NodeViewP
   }
   const move = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!dragging && !draggingAnchor) return
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const w = 480 / zoom, h = 240 / zoom
-    const x = (480 - w) / 2 + (event.clientX - bounds.left) * w / bounds.width
-    const y = (240 - h) / 2 + (event.clientY - bounds.top) * h / bounds.height
+    const [x,y] = coord(event)
     if (draggingAnchor) { setAnchorCursor([x,y]); return }
-    let snapped = { x, y }
-    if (draggingAnchor) { setAnchorCursor([x,y]); return }
-    persist(data.shapes.map((shape) => shape.id === dragging ? { ...shape, ...snapped } : shape))
+    setDragPreview({id:dragging!,x,y})
   }
-  const coord = (event: React.PointerEvent<SVGSVGElement>): [number,number] => { const b=event.currentTarget.getBoundingClientRect(),w=480/zoom,h=240/zoom; return [(480-w)/2+(event.clientX-b.left)*w/b.width,(240-h)/2+(event.clientY-b.top)*h/b.height] }
-  const anchors = (s: Shape): [number,number][] => [[s.x-32,s.y],[s.x+32,s.y],[s.x,s.y-22],[s.x,s.y+22]]
+  const coord = (event: React.PointerEvent<SVGSVGElement>): [number,number] => { const b=event.currentTarget.getBoundingClientRect(); return [(event.clientX-b.left)*480/b.width, (event.clientY-b.top)*240/b.height] }
+  const currentShapes = data.shapes.map(s=>s.id===dragPreview?.id?{...s,x:dragPreview.x,y:dragPreview.y}:s)
+  const anchors = (s: Shape): [number,number][] => s.kind === 'arrow' ? [[s.x,s.y]] : s.kind === 'rope' ? [[s.x-42,s.y-3],[s.x+42,s.y]] : [[s.x-32,s.y],[s.x+32,s.y],[s.x,s.y-22],[s.x,s.y+22]]
   const finishAnchor = (event: React.PointerEvent<SVGSVGElement>) => {
-    setDragging(null)
-    if (!draggingAnchor) return
-    const [x,y]=coord(event)
-    const target=data.shapes.filter(s=>s.id!==draggingAnchor.shapeId).flatMap(s=>anchors(s).map((p,node)=>({s,node,p,d:Math.hypot(x-p[0],y-p[1])}))).sort((a,b)=>a.d-b.d)[0]
-    if(target && target.d<30) persist(data.shapes,data.graph,[...(data.connections??[]),{id:crypto.randomUUID(),from:draggingAnchor.shapeId,fromNode:draggingAnchor.node,to:target.s.id,toNode:target.node}])
-    setDraggingAnchor(null);setAnchorCursor(null)
+    if (draggingAnchor) {
+      const [x,y]=coord(event)
+      const target=currentShapes.filter(s=>s.id!==draggingAnchor.shapeId).flatMap(s=>anchors(s).map((p,node)=>({s,node,p,d:Math.hypot(x-p[0],y-p[1])}))).sort((a,b)=>a.d-b.d)[0]
+      if(target && target.d<30) persist(currentShapes,data.graph,[...(data.connections??[]),{id:crypto.randomUUID(),from:draggingAnchor.shapeId,fromNode:draggingAnchor.node,to:target.s.id,toNode:target.node}])
+      else if(dragging) persist(currentShapes)
+      setDraggingAnchor(null);setAnchorCursor(null)
+    } else if (dragging && dragPreview) persist(currentShapes)
+    setDragging(null);setDragPreview(null)
   }
   const updateText = (id: string, text: string) => persist(data.shapes.map((shape) => shape.id === id ? { ...shape, text } : shape))
   return (
-    <NodeViewWrapper className={`diagram-node${selected ? ' is-selected' : ''}`}>
-      <div className="diagram-head"><span><span className="diagram-dot" />{data.graph ? `y = ${data.graph.expression}` : 'Diagrama científico'}</span><div><button onClick={() => setZoom((z) => Math.max(.6, z - .2))} aria-label="Alejar">−</button><button onClick={() => setZoom((z) => Math.min(2.4, z + .2))} aria-label="Acercar">+</button><button onClick={() => setExpanded(!expanded)} aria-label="Expandir gráfica">⤢</button><button onClick={deleteNode} aria-label="Quitar diagrama">×</button></div></div>
-      <div className="diagram-actions">
+    <NodeViewWrapper className={`diagram-node${data.graph ? ' function-plot' : ' physics-scene'}${selected ? ' is-selected' : ''}`}>
+      {data.graph && <><div className="diagram-head"><span><span className="diagram-dot" />y = {data.graph.expression}</span><div><button onClick={() => setZoom((z) => Math.max(.6, z - .2))} aria-label="Alejar">−</button><button onClick={() => setZoom((z) => Math.min(2.4, z + .2))} aria-label="Acercar">+</button><button onClick={() => setExpanded(!expanded)} aria-label="Expandir gráfica">⤢</button><button onClick={deleteNode} aria-label="Quitar gráfica">×</button></div></div></>}
+      {data.graph && <div className="diagram-actions">
         <button onClick={() => add('block')}>□ <span>Bloque</span></button>
         <button onClick={() => add('arrow')}>↗ <span>Vector</span></button>
         <button onClick={() => add('label')}>T <span>Texto</span></button>
         {active && <button className="remove-shape" onClick={() => { persist(data.shapes.filter((shape) => shape.id !== active)); setActive(null) }}>Remove selected</button>}
-      </div>
-      <svg className={expanded ? 'diagram-expanded' : ''} viewBox={`${(480 - 480 / zoom) / 2} ${(240 - 240 / zoom) / 2} ${480 / zoom} ${240 / zoom}`} role="img" aria-label="Lienzo editable de física y gráficas" onPointerMove={move} onPointerUp={finishAnchor} onPointerLeave={() => {setDragging(null);setDraggingAnchor(null);setAnchorCursor(null)}}>
+      </div>}
+      <svg className={expanded ? 'diagram-expanded' : ''} viewBox="0 0 480 240" role="img" aria-label={data.graph ? 'Gráfica de función' : 'Elementos de física sin marco'} onPointerMove={move} onPointerUp={finishAnchor} onPointerLeave={() => {setDragging(null);setDragPreview(null);setDraggingAnchor(null);setAnchorCursor(null)}}>
         <defs><pattern id="grid-dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="currentColor" opacity=".18" /></pattern><marker id="vector-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" /></marker></defs>
-        <rect width="480" height="240" fill="url(#grid-dots)" />
-        <line x1="36" y1="204" x2="444" y2="204" className="diagram-axis" /><line x1="84" y1="224" x2="84" y2="18" className="diagram-axis" />
-        <text x="428" y="194" className="axis-label">x</text><text x="91" y="26" className="axis-label">y</text>
-        {data.graph && <><line x1="240" y1="14" x2="240" y2="226" className="diagram-axis"/><path d={graphPath(data.graph.expression, zoom)} className="function-graph"/></>}
-        {(data.connections??[]).map(c=>{const a=data.shapes.find(s=>s.id===c.from),b=data.shapes.find(s=>s.id===c.to);if(!a||!b)return null;const p=anchors(a)[c.fromNode],q=anchors(b)[c.toNode];return <path key={c.id} d={`M${p[0]} ${p[1]} L${q[0]} ${q[1]}`} className="physics-connection"/>})}
-        {data.shapes.map((shape) => <g key={shape.id} className={`shape ${active === shape.id ? 'active' : ''}`} onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id); setDragging(shape.id); event.currentTarget.setPointerCapture(event.pointerId) }}>
-          {shape.kind === 'block' && <><rect x={shape.x - 34} y={shape.y - 23} width="68" height="46" rx="7" className="diagram-block" /><foreignObject x={shape.x - 22} y={shape.y - 10} width="44" height="22"><input className="shape-label" value={shape.text} aria-label="Block label" onPointerDown={(event) => event.stopPropagation()} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject></>}
-          {shape.kind === 'arrow' && <><line x1={shape.x} y1={shape.y} x2={shape.x + Math.cos(shape.angle * Math.PI / 180) * 78} y2={shape.y + Math.sin(shape.angle * Math.PI / 180) * 78} className="vector-line" markerEnd="url(#vector-head)" /><foreignObject x={shape.x + Math.cos(shape.angle * Math.PI / 180) * 82 - 14} y={shape.y + Math.sin(shape.angle * Math.PI / 180) * 82 - 14} width="56" height="28"><input className="shape-label vector-label" value={shape.text} aria-label="Vector label" onPointerDown={(event) => event.stopPropagation()} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject><circle cx={shape.x} cy={shape.y} r="4" className="vector-origin" /></>}
-          {shape.kind === 'label' && <foreignObject x={shape.x - 48} y={shape.y - 15} width="96" height="30"><input className="shape-label free-label" value={shape.text} aria-label="Diagram text" onPointerDown={(event) => event.stopPropagation()} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject>}
+        {data.graph && <rect width="480" height="240" fill="url(#grid-dots)" />}
+        {data.graph && <><line x1="36" y1="204" x2="444" y2="204" className="diagram-axis" /><line x1="84" y1="224" x2="84" y2="18" className="diagram-axis" /><text x="428" y="194" className="axis-label">x</text><text x="91" y="26" className="axis-label">y</text><path d={graphPath(data.graph.expression, zoom)} className="function-graph"/></>}
+        {(data.connections??[]).map(c=>{const a=currentShapes.find(s=>s.id===c.from),b=currentShapes.find(s=>s.id===c.to);if(!a||!b)return null;const p=anchors(a)[c.fromNode],q=anchors(b)[c.toNode];return <path key={c.id} d={`M${p[0]} ${p[1]} L${q[0]} ${q[1]}`} className="physics-connection"/>})}
+        {currentShapes.map((shape) => <g key={shape.id} className={`shape ${active === shape.id ? 'active' : ''}`} onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id); setDragging(shape.id); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId) }}>
+          <rect x={shape.x-48} y={shape.y-36} width="96" height="72" fill="transparent" className="shape-hit-area" />
+          {shape.kind === 'block' && <><rect x={shape.x - 34} y={shape.y - 23} width="68" height="46" rx="7" className="diagram-block" /><foreignObject x={shape.x - 22} y={shape.y - 10} width="44" height="22"><input className="shape-label" value={shape.text} aria-label="Block label" onPointerDown={(event) => { setActive(shape.id); setDragging(shape.id); (event.currentTarget.closest('svg') as SVGSVGElement | null)?.setPointerCapture(event.pointerId) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject></>}
+          {shape.kind === 'arrow' && <><line x1={shape.x} y1={shape.y} x2={shape.x + Math.cos(shape.angle * Math.PI / 180) * 78} y2={shape.y + Math.sin(shape.angle * Math.PI / 180) * 78} className="vector-line" markerEnd="url(#vector-head)" /><foreignObject x={shape.x + Math.cos(shape.angle * Math.PI / 180) * 82 - 14} y={shape.y + Math.sin(shape.angle * Math.PI / 180) * 82 - 14} width="56" height="28"><input className="shape-label vector-label" value={shape.text} aria-label="Vector label" onPointerDown={(event) => { setActive(shape.id); setDragging(shape.id); (event.currentTarget.closest('svg') as SVGSVGElement | null)?.setPointerCapture(event.pointerId) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject><circle cx={shape.x} cy={shape.y} r="4" className="vector-origin" /></>}
+          {shape.kind === 'label' && <foreignObject x={shape.x - 48} y={shape.y - 15} width="96" height="30"><input className="shape-label free-label" value={shape.text} aria-label="Diagram text" onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject>}
           {!['block','arrow','label','pulley','disk','sphere','ring','cylinder','rope','spring','rotation','rod','lever','radius','diameter','incline','support'].includes(shape.kind) && <circle cx={shape.x} cy={shape.y} r="17" className="physics-object"/>}
           {['pulley','disk','sphere','ring','cylinder','rope','spring','rotation','rod','lever','radius','diameter','incline','support'].includes(shape.kind) && <g transform={`translate(${shape.x} ${shape.y}) rotate(${shape.angle})`} className="physics-object-drawing">
             {shape.kind==='pulley'&&<><circle r="24" className="object-fill"/><circle r="15" className="object-inner"/><circle r="4" className="object-hub"/><path d="M-24 -3 Q-15 -3 -15 0 Q-15 3 -24 3 M24 -3 Q15 -3 15 0 Q15 3 24 3" className="object-detail"/></>}
@@ -129,11 +131,11 @@ function DiagramView({ node, updateAttributes, selected, deleteNode }: NodeViewP
             {shape.kind==='support'&&<><path d="M0 -25 L-22 18 L22 18 Z" className="object-fill"/><path d="M-26 20 l6 6 m4 -6 l6 6 m4 -6 l6 6 m4 -6 l6 6 m4 -6 l6 6" className="object-detail"/></>}
           </g>}
           {!['block','arrow','label','rope','spring','rotation','radius','diameter','incline','support'].includes(shape.kind) && <text x={shape.x} y={shape.y+39} textAnchor="middle" className="axis-label">{shape.text}</text>}
-          {active === shape.id && <>{anchors(shape).map(([x,y],i) => <circle key={i} cx={x} cy={y} r="5" className={`diagram-anchor${draggingAnchor?.shapeId===shape.id&&draggingAnchor.node===i?' is-dragging':''}`} onPointerDown={(event)=>{event.stopPropagation();event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);setDragging(null);setDraggingAnchor({shapeId:shape.id,node:i});setAnchorCursor([x,y])}} />)}</>}
+          {active === shape.id && <>{anchors(shape).map(([x,y],i) => <circle key={i} cx={x} cy={y} r="6" className={`diagram-anchor${draggingAnchor?.shapeId===shape.id&&draggingAnchor.node===i?' is-dragging':''}`} onPointerDown={(event)=>{event.stopPropagation();event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);setDragging(null);setDragPreview(null);setDraggingAnchor({shapeId:shape.id,node:i});setAnchorCursor([x,y])}} />)}</>}
         </g>)}
         {draggingAnchor&&anchorCursor&&<><line x1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][0]} y1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][1]} x2={anchorCursor[0]} y2={anchorCursor[1]} className="anchor-drag-line"/><circle cx={anchorCursor[0]} cy={anchorCursor[1]} r="7" className="anchor-cursor"/></>}
       </svg>
-      <div className="diagram-foot">Arrastrá los objetos; los vectores se adhieren a los puntos de anclaje.</div>
+      {data.graph && <div className="diagram-foot">Arrastrá los objetos; los vectores se adhieren a los puntos de anclaje.</div>}
     </NodeViewWrapper>
   )
 }

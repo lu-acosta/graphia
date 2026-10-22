@@ -134,6 +134,11 @@ export function ScientificEditor({ content, update, suggestions, language, title
     const selection = editor.state.selection
     if (selection instanceof NodeSelection && selection.node.type.name === 'scientificDiagram') {
       const data = selection.node.attrs.data as { shapes: Array<{id:string;kind:ShapeKind;x:number;y:number;text:string;angle:number}>; graph?: {expression:string} }
+      if (data.graph) {
+        const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rope:'', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
+        editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : [] } } }).run()
+        return
+      }
       const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
       const index = (data.shapes ?? []).length
       const shapes = kind ? [...(data.shapes ?? []), { id: crypto.randomUUID(), kind, x: 104 + (index % 4) * 92, y: 72 + (Math.floor(index / 4) % 2) * 88, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : data.shapes ?? []
