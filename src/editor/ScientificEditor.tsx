@@ -7,7 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import { NodeSelection } from '@tiptap/pm/state'
-import { Bold, Code2, Heading1, Heading2, Italic, Link2, List, ListOrdered, Minus, Plus, Redo2, Sigma, Strikethrough, Table2, Underline as UnderlineIcon, Undo2, X, Wrench, Orbit, Circle, CircleDot, Disc3, Cylinder, Cable, Ruler, Triangle, MoveUpRight, Activity } from 'lucide-react'
+import { Bold, Code2, Heading1, Heading2, Italic, Link2, List, ListOrdered, Minus, Plus, Redo2, Sigma, Strikethrough, Table2, Underline as UnderlineIcon, Undo2, X, Wrench, Orbit, Circle, CircleDot, Disc3, Cylinder, Ruler, Triangle, MoveUpRight, Activity } from 'lucide-react'
 import { FormulaNode } from '../math/FormulaNode'
 import { DiagramNode, type ShapeKind } from './DiagramNode'
 
@@ -135,7 +135,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
     if (selection instanceof NodeSelection && selection.node.type.name === 'scientificDiagram') {
       const data = selection.node.attrs.data as { shapes: Array<{id:string;kind:ShapeKind;x:number;y:number;text:string;angle:number}>; graph?: {expression:string} }
       if (data.graph) {
-        const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rope:'', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
+        const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
         editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : [] } } }).run()
         return
       }
@@ -203,7 +203,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
 }
 
 const physicsTools: { kind: ShapeKind; es: string; en: string; icon: typeof Circle }[] = [
-  {kind:'pulley',es:'Polea',en:'Pulley',icon:CircleDot},{kind:'disk',es:'Disco',en:'Disk',icon:Disc3},{kind:'sphere',es:'Esfera',en:'Sphere',icon:Circle},{kind:'ring',es:'Aro',en:'Ring',icon:CircleDot},{kind:'cylinder',es:'Cilindro',en:'Cylinder',icon:Cylinder},{kind:'rope',es:'Cuerda',en:'Rope',icon:Cable},{kind:'rod',es:'Barra',en:'Rod',icon:Minus},{kind:'support',es:'Apoyo',en:'Support',icon:Triangle},{kind:'lever',es:'Palanca',en:'Lever',icon:MoveUpRight},{kind:'incline',es:'Plano inclinado',en:'Incline',icon:Triangle},{kind:'spring',es:'Resorte',en:'Spring',icon:Activity},{kind:'block',es:'Bloque',en:'Block',icon:MoveUpRight},{kind:'arrow',es:'Vector',en:'Vector',icon:MoveUpRight},{kind:'rotation',es:'Sentido de giro',en:'Rotation',icon:Orbit},{kind:'radius',es:'Radio',en:'Radius',icon:Ruler},{kind:'diameter',es:'Diámetro',en:'Diameter',icon:Ruler},
+  {kind:'pulley',es:'Polea',en:'Pulley',icon:CircleDot},{kind:'disk',es:'Disco',en:'Disk',icon:Disc3},{kind:'sphere',es:'Esfera',en:'Sphere',icon:Circle},{kind:'ring',es:'Aro',en:'Ring',icon:CircleDot},{kind:'cylinder',es:'Cilindro',en:'Cylinder',icon:Cylinder},{kind:'rod',es:'Barra',en:'Rod',icon:Minus},{kind:'support',es:'Apoyo',en:'Support',icon:Triangle},{kind:'lever',es:'Palanca',en:'Lever',icon:MoveUpRight},{kind:'incline',es:'Plano inclinado',en:'Incline',icon:Triangle},{kind:'spring',es:'Resorte',en:'Spring',icon:Activity},{kind:'block',es:'Bloque',en:'Block',icon:MoveUpRight},{kind:'arrow',es:'Vector',en:'Vector',icon:MoveUpRight},{kind:'rotation',es:'Sentido de giro',en:'Rotation',icon:Orbit},{kind:'radius',es:'Radio',en:'Radius',icon:Ruler},{kind:'diameter',es:'Diámetro',en:'Diameter',icon:Ruler},
 ]
 function ToolsPanel({ language, addDiagram, insertGraph, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind,angleValue?:number)=>void;insertGraph:(expression:string)=>void;close:()=>void}) {
   const [expression,setExpression] = useState('sin(x)')
