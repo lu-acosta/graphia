@@ -45,7 +45,6 @@ function FormulaView({ node, updateAttributes, selected }: NodeViewProps) {
   }, [])
   const handleInput = (event: Event) => updateAttributes({ latex: (event.target as MathfieldElement).value })
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    const mathfield = mathRef.current
     if (event.key === 'ArrowRight' && (event.currentTarget as HTMLElement).matches(':focus')) {
       event.preventDefault()
       document.execCommand('insertText', false, ' ')
