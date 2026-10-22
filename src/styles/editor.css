@@ -123,3 +123,12 @@
   .editor-main-column .paper-inner { padding: 47px 25px 60px; }
   .editor-main-column .document-prose { font-size: 13px; }
 }
+
+/* Compact, translucent command picker inspired by editor completions. */
+.suggestion-menu { width: min(270px, calc(100vw - 16px)); gap: 1px; padding: 4px; border-color: rgb(82 111 155 / 42%); border-radius: 9px; background: rgb(10 20 36 / 76%); box-shadow: 0 12px 36px rgb(0 0 0 / 35%); backdrop-filter: blur(18px) saturate(145%); -webkit-backdrop-filter: blur(18px) saturate(145%); }
+.suggestion-menu > button { min-height: 31px; gap: 8px; padding: 3px 6px; border-radius: 6px; font-size: 11px; }
+.suggestion-menu > button:hover, .suggestion-menu > button[aria-selected='true'] { background: rgb(59 130 246 / 21%); }
+.suggestion-glyph { width: 20px; height: 20px; flex-basis: 20px; border-radius: 5px; font-size: 13px; }
+.suggestion-menu > button > span:nth-child(2) { gap: 0; }
+.suggestion-menu small { display: none; }
+.suggestion-menu kbd { padding: 2px 4px; font-size: 8px; }

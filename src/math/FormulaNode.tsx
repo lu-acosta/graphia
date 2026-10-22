@@ -14,8 +14,9 @@ function FormulaView({ node, updateAttributes, selected }: NodeViewProps) {
   const handleInput = (event: Event) => updateAttributes({ latex: (event.target as MathfieldElement).value })
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const mathfield = mathRef.current
-    if (event.key === '@' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (event.key === '@' || (event.code === 'KeyQ' && event.getModifierState('AltGraph'))) {
       event.preventDefault()
+      event.stopPropagation()
       commandRef.current = ''
       window.dispatchEvent(new CustomEvent('graphia:math-query', { detail: { query: '', field: mathfield } }))
       return
