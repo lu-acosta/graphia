@@ -70,7 +70,7 @@ export async function deleteDocument(id: string): Promise<void> {
 export function blankDocument(title = 'Untitled notes'): Doc {
   const now = Date.now()
   const id = crypto.randomUUID()
-  const content = `<h1>${escapeHtml(title)}</h1><p>Start with what you know. Let the reasoning take shape.</p><p></p>`
+  const content = '<p></p>'
   return { id, title, content, favorite: false, createdAt: now, updatedAt: now }
 }
 

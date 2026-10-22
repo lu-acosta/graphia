@@ -29,14 +29,26 @@ const commands = [
 const symbols = ['∞', 'π', 'Σ', '∫', '√', '≤', '≥', '±', '∈', '∉']
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
 const matchesCommand = (command: typeof commands[number], query: string, language: 'es' | 'en') => [command[language], command.es, command.en, ...command.aliases].some((value) => normalize(value).includes(normalize(query)))
+type MathCompletionField = HTMLElement & { insert: (latex: string, options?: { selectionMode?: string }) => boolean }
+type MathQueryEvent = CustomEvent<{ query: string | null; field: MathCompletionField | null }>
 
 export function ScientificEditor({ content, update, suggestions, language, title, onTitleChange, onTitleCommit, onSaved }: Props) {
   const text = labels[language]
   const [query, setQuery] = useState<string | null>(null)
+  const [mathCompletion, setMathCompletion] = useState<{ query: string; field: MathCompletionField } | null>(null)
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const [showMathMenu, setShowMathMenu] = useState(false)
   const [commandLanguage, setCommandLanguage] = useState(language)
   useEffect(() => setCommandLanguage(language), [language])
+  useEffect(() => {
+    const onMathQuery = (event: Event) => {
+      const { query: nextQuery, field } = (event as MathQueryEvent).detail
+      setMathCompletion(nextQuery === null || !field ? null : { query: nextQuery, field })
+      setSelectedSuggestion(0)
+    }
+    window.addEventListener('graphia:math-query', onMathQuery)
+    return () => window.removeEventListener('graphia:math-query', onMathQuery)
+  }, [])
   const editor = useEditor({
     extensions: [StarterKit, Underline, Link.configure({ openOnClick: false }), Image.configure({ inline: false, allowBase64: true }), Table.configure({ resizable: true }), TableRow, TableHeader, TableCell, Placeholder.configure({ placeholder: language === 'es' ? 'Empezá a escribir…' : 'Start writing…' }), FormulaNode, DiagramNode],
     content,
@@ -53,8 +65,9 @@ export function ScientificEditor({ content, update, suggestions, language, title
     editorProps: {
       attributes: { class: 'document-prose', spellcheck: 'false' },
       handleKeyDown: (_view, event) => {
-        if (query === null) return false
-        if (event.key === 'Escape') { setQuery(null); return true }
+        const completionQuery = mathCompletion?.query ?? query
+        if (completionQuery === null) return false
+        if (event.key === 'Escape') { setQuery(null); setMathCompletion(null); return true }
         if (available.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
           event.preventDefault()
           setSelectedSuggestion((index) => (index + (event.key === 'ArrowDown' ? 1 : available.length - 1)) % available.length)
@@ -62,15 +75,23 @@ export function ScientificEditor({ content, update, suggestions, language, title
         }
         if (event.key === 'Enter' && available[selectedSuggestion] && editor) {
           event.preventDefault()
-          replaceTrigger(available[selectedSuggestion].latex)
+          insertCommand(available[selectedSuggestion].latex)
           return true
         }
         return false
       },
     },
   })
-  const available = useMemo(() => commands.filter((item) => query !== null && matchesCommand(item, query, commandLanguage)).slice(0, 6), [query, commandLanguage])
-  const replaceTrigger = useCallback((latex: string) => {
+  const completionQuery = mathCompletion?.query ?? query
+  const available = useMemo(() => commands.filter((item) => completionQuery !== null && matchesCommand(item, completionQuery, commandLanguage)).slice(0, 6), [completionQuery, commandLanguage])
+  const insertCommand = useCallback((latex: string) => {
+    if (mathCompletion) {
+      mathCompletion.field.focus()
+      mathCompletion.field.insert(latex, { selectionMode: 'placeholder' })
+      setMathCompletion(null)
+      onSaved?.()
+      return
+    }
     if (!editor || query === null) return
     const { from, to } = editor.state.selection
     const insertionPosition = from - query.length - 1
@@ -78,7 +99,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
     focusInsertedFormula(editor, insertionPosition)
     setQuery(null)
     onSaved?.()
-  }, [editor, onSaved, query])
+  }, [editor, mathCompletion, onSaved, query])
   useEffect(() => {
     if (!editor || editor.getHTML() === content) return
     const selection = editor.state.selection
@@ -135,7 +156,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
           <div className="toolbar-group optional-tools"><button className="tool-icon" aria-label="Heading 1" title="Heading 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 /></button><button className="tool-icon" aria-label="Heading 2" title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 /></button><button className="tool-icon" aria-label="Horizontal rule" title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus /></button></div>
         </div>
         <div className="paper-scroll"><div className="paper" onClick={() => editor.commands.focus('end')}><div className="paper-inner"><EditorContent editor={editor} />
-          {query !== null && available.length > 0 && <div className="suggestion-menu" role="listbox" aria-label={language === 'es' ? 'Sugerencias matemáticas' : 'Math suggestions'}>{available.map((item, index) => <button key={item.es} role="option" aria-selected={index === selectedSuggestion} onMouseDown={(event) => { event.preventDefault(); replaceTrigger(item.latex) }}><span className="suggestion-glyph">√</span><span>{item[commandLanguage]}<small>{language === 'es' ? 'Insertar estructura editable' : 'Insert editable structure'}</small></span><kbd>↵</kbd></button>)}</div>}
+          {completionQuery !== null && available.length > 0 && <div className="suggestion-menu" role="listbox" aria-label={language === 'es' ? 'Sugerencias matemáticas' : 'Math suggestions'} style={mathCompletion ? (() => { const rect = mathCompletion.field.getBoundingClientRect(); return { position: 'fixed' as const, top: Math.min(rect.bottom + 8, window.innerHeight - 300), left: Math.min(rect.left, window.innerWidth - 360) } })() : undefined}>{available.map((item, index) => <button key={item.es} role="option" aria-selected={index === selectedSuggestion} onMouseDown={(event) => { event.preventDefault(); insertCommand(item.latex) }}><span className="suggestion-glyph">{item.latex.includes('sqrt') ? '√' : item.latex.includes('sum') ? 'Σ' : '∑'}</span><span>{item[commandLanguage]}<small>{language === 'es' ? 'Insertar estructura editable' : 'Insert editable structure'}</small></span><kbd>↵</kbd></button>)}</div>}
         </div></div></div>
       </section>
     </div>
