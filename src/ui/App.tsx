@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, Clock3, Command, Copy, FilePlus2, FileText, Globe2, Grid2X2, HelpCircle, Home, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Pin, Search, Settings2, Sigma, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Clock3, Command, Copy, FilePlus2, FileText, Globe2, Grid2X2, HelpCircle, Home, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Pin, Search, Settings2, Sigma, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
 import katex from 'katex'
 import { type Doc, type Preferences, blankDocument, deleteDocument, getDocuments, loadPreferences, saveDocument, savePreferences } from '../model'
 import { ScientificEditor } from '../editor/ScientificEditor'
