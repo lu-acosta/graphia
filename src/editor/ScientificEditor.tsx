@@ -29,7 +29,7 @@ const commands = [
 const symbols = ['∞', 'π', 'Σ', '∫', '√', '≤', '≥', '±', '∈', '∉']
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
 const matchesCommand = (command: typeof commands[number], query: string, language: 'es' | 'en') => [command[language], command.es, command.en, ...command.aliases].some((value) => normalize(value).includes(normalize(query)))
-type MathCompletionField = HTMLElement & { insert: (latex: string, options?: { selectionMode?: string }) => boolean }
+type MathCompletionField = HTMLElement & { focus: () => void; insert: (latex: string, options?: { selectionMode?: string }) => boolean; executeCommand: (command: string) => boolean }
 type MathQueryEvent = CustomEvent<{ query: string | null; field: MathCompletionField | null }>
 
 export function ScientificEditor({ content, update, suggestions, language, title, onTitleChange, onTitleCommit, onSaved }: Props) {
@@ -87,7 +87,11 @@ export function ScientificEditor({ content, update, suggestions, language, title
   const insertCommand = useCallback((latex: string) => {
     if (mathCompletion) {
       mathCompletion.field.focus()
-      mathCompletion.field.insert(latex, { selectionMode: 'placeholder' })
+      mathCompletion.field.insert(latex, { selectionMode: 'after' })
+      window.requestAnimationFrame(() => {
+        mathCompletion.field.focus()
+        try { mathCompletion.field.executeCommand('moveToNextPlaceholder') } catch { /* Commands without editable slots stay at the insertion point. */ }
+      })
       setMathCompletion(null)
       onSaved?.()
       return

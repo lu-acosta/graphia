@@ -1,1 +1,1 @@
-{"root":["./src/main.tsx","./src/model.ts","./src/editor/diagramnode.tsx","./src/editor/scientificeditor.tsx","./src/math/formulanode.tsx","./src/ui/app.tsx"],"errors":true,"version":"5.8.3"}
+{"root":["./src/main.tsx","./src/model.ts","./src/editor/diagramnode.tsx","./src/editor/scientificeditor.tsx","./src/math/formulanode.tsx","./src/ui/app.tsx"],"version":"5.8.3"}
