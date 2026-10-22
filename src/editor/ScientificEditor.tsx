@@ -129,17 +129,18 @@ export function ScientificEditor({ content, update, suggestions, language, title
     focusInsertedFormula(editor, insertionPosition)
     setShowMathMenu(false); onSaved?.()
   }, [editor, onSaved])
-  const addDiagram = useCallback((kind?: ShapeKind) => {
+  const addDiagram = useCallback((kind?: ShapeKind, angleValue = 30) => {
     if (!editor) return
     const selection = editor.state.selection
     if (selection instanceof NodeSelection && selection.node.type.name === 'scientificDiagram') {
       const data = selection.node.attrs.data as { shapes: Array<{id:string;kind:ShapeKind;x:number;y:number;text:string;angle:number}>; graph?: {expression:string} }
       const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
-      const shapes = kind ? [...(data.shapes ?? []), { id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0 }] : data.shapes ?? []
+      const index = (data.shapes ?? []).length
+      const shapes = kind ? [...(data.shapes ?? []), { id: crypto.randomUUID(), kind, x: 104 + (index % 4) * 92, y: 72 + (Math.floor(index / 4) % 2) * 88, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : data.shapes ?? []
       editor.commands.updateAttributes('scientificDiagram', { data: { ...data, shapes } }); editor.commands.focus(); return
     }
     const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
-    const shapes = kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0 }] : []
+    const shapes = kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : []
     editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes } } }).run()
   }, [editor])
   const insertGraph = useCallback((expression: string) => {
@@ -199,14 +200,14 @@ export function ScientificEditor({ content, update, suggestions, language, title
 const physicsTools: { kind: ShapeKind; es: string; en: string; icon: typeof Circle }[] = [
   {kind:'pulley',es:'Polea',en:'Pulley',icon:CircleDot},{kind:'disk',es:'Disco',en:'Disk',icon:Disc3},{kind:'sphere',es:'Esfera',en:'Sphere',icon:Circle},{kind:'ring',es:'Aro',en:'Ring',icon:CircleDot},{kind:'cylinder',es:'Cilindro',en:'Cylinder',icon:Cylinder},{kind:'rope',es:'Cuerda',en:'Rope',icon:Cable},{kind:'rod',es:'Barra',en:'Rod',icon:Minus},{kind:'support',es:'Apoyo',en:'Support',icon:Triangle},{kind:'lever',es:'Palanca',en:'Lever',icon:MoveUpRight},{kind:'incline',es:'Plano inclinado',en:'Incline',icon:Triangle},{kind:'spring',es:'Resorte',en:'Spring',icon:Activity},{kind:'block',es:'Bloque',en:'Block',icon:MoveUpRight},{kind:'arrow',es:'Vector',en:'Vector',icon:MoveUpRight},{kind:'rotation',es:'Sentido de giro',en:'Rotation',icon:Orbit},{kind:'radius',es:'Radio',en:'Radius',icon:Ruler},{kind:'diameter',es:'Diámetro',en:'Diameter',icon:Ruler},
 ]
-function ToolsPanel({ language, addDiagram, insertGraph, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind)=>void;insertGraph:(expression:string)=>void;close:()=>void}) {
+function ToolsPanel({ language, addDiagram, insertGraph, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind,angleValue?:number)=>void;insertGraph:(expression:string)=>void;close:()=>void}) {
   const [expression,setExpression] = useState('sin(x)')
   const [angle,setAngle] = useState(30)
   const es=language==='es'
   return <aside className="tools-panel">
     <header><div><Wrench size={16}/><strong>{es?'Herramientas':'Tools'}</strong></div><button aria-label={es?'Cerrar herramientas':'Close tools'} onClick={close}><X size={16}/></button></header>
     <section className="tools-section"><h3>{es?'Funciones matemáticas':'Mathematical functions'}</h3><label className="function-input"><span>f(x) =</span><input value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')insertGraph(expression)}} placeholder="x^2"/><button onClick={()=>insertGraph(expression)}><Activity size={15}/>{es?'Graficar':'Graph'}</button></label><p className="tools-hint">{es?'Usá x, + − × / ^ y sin, cos, tan, sqrt, log.':'Use x, + − × / ^ and sin, cos, tan, sqrt, log.'}</p></section>
-    <section className="tools-section"><h3>{es?'Física':'Physics'}</h3><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div><label className="angle-control">{es?'Ángulo del plano':'Surface angle'} <input type="range" min="5" max="85" value={angle} onChange={e=>setAngle(+e.target.value)}/><span>{angle}°</span></label><button className="incline-insert" onClick={()=>addDiagram('incline')}>{es?'Insertar plano con ángulo':'Insert angled plane'} {angle}°</button></section>
+    <section className="tools-section"><h3>{es?'Física':'Physics'}</h3><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div><label className="angle-control">{es?'Ángulo del plano':'Surface angle'} <input type="range" min="5" max="85" value={angle} onChange={e=>setAngle(+e.target.value)}/><span>{angle}°</span></label><button className="incline-insert" onClick={()=>addDiagram('incline',angle)}>{es?'Insertar plano con ángulo':'Insert angled plane'} {angle}°</button></section>
     <section className="tools-section"><h3>{es?'Diagrama':'Diagram'}</h3><p className="tools-hint">{es?'Seleccioná un objeto para agregarlo al diagrama seleccionado. Los vectores se ajustan a los nodos magnéticos.':'Add objects to the selected diagram. Vectors snap to magnetic anchor points.'}</p><button className="new-diagram-tool" onClick={()=>addDiagram(undefined)}>{es?'Nuevo diagrama físico':'New physics diagram'}</button></section>
   </aside>
 }
