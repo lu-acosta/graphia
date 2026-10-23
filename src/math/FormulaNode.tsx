@@ -24,7 +24,12 @@ function FormulaView({ node, updateAttributes, selected }: NodeViewProps) {
         return
       }
       if (commandRef.current === null) return
-      if (event.key === 'Backspace') {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        window.dispatchEvent(new CustomEvent('graphia:math-confirm', { detail: { query: commandRef.current, field: mathfield } }))
+        commandRef.current = null
+      } else if (event.key === 'Backspace') {
         event.preventDefault()
         event.stopImmediatePropagation()
         commandRef.current = commandRef.current.slice(0, -1)

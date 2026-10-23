@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -63,6 +63,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const [showMathMenu, setShowMathMenu] = useState(false)
   const [commandLanguage, setCommandLanguage] = useState(language)
+  const lastEditorPosition = useRef<number | null>(null)
   useEffect(() => setCommandLanguage(language), [language])
   useEffect(() => {
     const onMathQuery = (event: Event) => {
@@ -73,9 +74,28 @@ export function ScientificEditor({ content, update, suggestions, language, title
     window.addEventListener('graphia:math-query', onMathQuery)
     return () => window.removeEventListener('graphia:math-query', onMathQuery)
   }, [])
+  useEffect(() => {
+    const onMathConfirm = (event: Event) => {
+      const { query: currentQuery, field } = (event as MathQueryEvent).detail
+      if (currentQuery === null || !field) return
+      const suggestions = commands.filter((item) => matchesCommand(item, currentQuery, commandLanguage)).slice(0, 6)
+      const chosen = suggestions[Math.min(selectedSuggestion, suggestions.length - 1)]
+      if (!chosen) return
+      field.insert(chosen.latex, { selectionMode: 'after' })
+      setMathCompletion(null)
+      window.requestAnimationFrame(() => {
+        field.focus()
+        try { field.executeCommand('moveToNextPlaceholder') } catch { /* No editable slot. */ }
+      })
+      onSaved?.()
+    }
+    window.addEventListener('graphia:math-confirm', onMathConfirm)
+    return () => window.removeEventListener('graphia:math-confirm', onMathConfirm)
+  }, [commandLanguage, selectedSuggestion, onSaved])
   const editor = useEditor({
     extensions: [StarterKit, Underline, Link.configure({ openOnClick: false }), Image.configure({ inline: false, allowBase64: true }), Table.configure({ resizable: true }), TableRow, TableHeader, TableCell, Placeholder.configure({ placeholder: language === 'es' ? 'Empezá a escribir…' : 'Start writing…' }), FormulaNode, DiagramNode, SignChartNode],
     content,
+    onSelectionUpdate: ({ editor: instance }) => { if (instance.isFocused) lastEditorPosition.current = instance.state.selection.from },
     onUpdate: ({ editor: instance }) => {
       update(instance.getHTML())
       if (!suggestions) { setQuery(null); return }
@@ -161,7 +181,24 @@ export function ScientificEditor({ content, update, suggestions, language, title
   }, [editor])
   const insertGraph = useCallback((expression: string) => {
     if (!editor) return
-    editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: [], graph: { expression: expression.trim() } } } }).run()
+    const id = crypto.randomUUID()
+    const position = Math.min(lastEditorPosition.current ?? editor.state.selection.from, editor.state.doc.content.size)
+    editor.chain().insertContentAt(position, [
+      { type: 'scientificDiagram', attrs: { data: { shapes: [], graph: { id, expression: expression.trim() } } } },
+      { type: 'paragraph' },
+    ]).run()
+    let diagramPosition = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'scientificDiagram' && node.attrs.data?.graph?.id === id) diagramPosition = pos
+    })
+    if (diagramPosition < 0) return
+    const followingPosition = Math.min(diagramPosition + (editor.state.doc.nodeAt(diagramPosition)?.nodeSize ?? 1) + 1, editor.state.doc.content.size)
+    editor.chain().focus().setTextSelection(followingPosition).run()
+    lastEditorPosition.current = followingPosition
+    if (!expression.trim()) window.requestAnimationFrame(() => {
+      const node = editor.view.nodeDOM(diagramPosition) as HTMLElement | null
+      node?.querySelector<HTMLInputElement>('.graph-expression-input')?.focus()
+    })
   }, [editor])
   const addSignChart = useCallback(() => editor?.chain().focus().insertContent({ type: 'signChart', attrs: { data: blankSignChart() } }).run(), [editor])
   const addTable = useCallback(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), [editor])
@@ -232,7 +269,7 @@ function ToolsPanel({ language, addDiagram, insertGraph, addSignChart, close }: 
   return <aside className="tools-panel">
     <header><div><Wrench size={16}/><strong>{es?'Herramientas':'Tools'}</strong></div><button aria-label={es?'Cerrar herramientas':'Close tools'} onClick={close}><X size={16}/></button></header>
     <div className="tool-mode-switch" role="tablist" aria-label={es?'Tipo de herramienta':'Tool type'}><button role="tab" aria-selected={toolMode==='functions'} onClick={()=>setToolMode('functions')}>{es?'Funciones':'Functions'}</button><button role="tab" aria-selected={toolMode==='physics'} onClick={()=>setToolMode('physics')}>{es?'Física':'Physics'}</button><button role="tab" aria-selected={toolMode==='signs'} onClick={()=>setToolMode('signs')}>{es?'Signos':'Signs'}</button></div>
-    {toolMode==='signs' ? <section className="tools-section"><h3>{es?'Esquema de signos':'Sign chart'}</h3><p className="tools-hint">{es?'Marcá valores críticos y asigná positivo, negativo, cero, no existe o una condición propia a cada intervalo.':'Mark critical values and assign a sign or custom condition to every interval.'}</p><button className="new-diagram-tool" onClick={addSignChart}>{es?'Insertar esquema de signos':'Insert sign chart'}</button></section> : toolMode==='functions' ? <section className="tools-section">
+    {toolMode==='signs' ? <section className="tools-section"><h3>{es?'Esquema de signos':'Sign chart'}</h3><p className="tools-hint">{es?'Una recta simple: escribí los valores críticos y qué vale en cada tramo o punto.':'A simple number line: enter critical values and the result in each interval or at each point.'}</p><button className="new-diagram-tool" onClick={addSignChart}>{es?'Insertar esquema de signos':'Insert sign chart'}</button></section> : toolMode==='functions' ? <section className="tools-section">
       <h3>{es?'Graficar una función':'Graph a function'}</h3>
       <p className="tools-hint">{es?'Escribí una expresión y se insertará como un plano interactivo en el documento.':'Enter an expression to insert an interactive coordinate plane into the document.'}</p>
       <label className="function-input"><span>f(x) =</span><input aria-label={es?'Expresión de la función':'Function expression'} aria-invalid={!validExpression} value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&validExpression)insertGraph(expression)}} placeholder="2x^2"/><button onClick={()=>insertGraph(expression)} disabled={!validExpression}><Activity size={15}/>{expression.trim()?(es?'Graficar':'Graph'):(es?'Insertar plano':'Insert plane')}</button></label>
