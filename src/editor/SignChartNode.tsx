@@ -33,7 +33,7 @@ export function signChartPrintHtml(data: SignChartData) {
     cursor += 80
   })
   parts.push(`<text x="${cursor + 60}" y="34" text-anchor="middle" font-size="18">${esc(legacyResult(intervals[points.length] ?? {}))}</text>`)
-  return `<svg class="print-sign-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 110" style="display:block;width:100%;height:auto;max-width:100%;margin:16px 0" role="img" aria-label="Esquema de signos">${parts.join('')}</svg>`
+  return `<svg class="print-sign-chart" xmlns="http://www.w3.org/2000/svg" width="${width}" height="110" viewBox="0 0 ${width} 110" style="display:block;max-width:100%;height:auto;margin:16px 0" role="img" aria-label="Esquema de signos">${parts.join('')}</svg>`
 }
 
 function SignChartView({ node, updateAttributes }: NodeViewProps) {
