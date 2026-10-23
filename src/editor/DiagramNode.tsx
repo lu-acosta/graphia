@@ -2,10 +2,16 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 
-export type ShapeKind = 'block' | 'arrow' | 'label' | 'pulley' | 'disk' | 'sphere' | 'ring' | 'cylinder' | 'rod' | 'support' | 'lever' | 'incline' | 'spring' | 'rotation' | 'radius' | 'diameter'
-type Shape = { id: string; kind: ShapeKind; x: number; y: number; text: string; angle: number; angleValue?: number }
+export type ShapeKind = 'block' | 'arrow' | 'label' | 'line' | 'circle' | 'rectangle' | 'pulley' | 'disk' | 'sphere' | 'ring' | 'cylinder' | 'rod' | 'support' | 'lever' | 'incline' | 'spring' | 'rotation' | 'radius' | 'diameter'
+type Shape = { id: string; kind: ShapeKind; x: number; y: number; text: string; angle: number; angleValue?: number; width?: number; height?: number; length?: number; color?: string }
 type Connection = { id: string; from: string; fromNode: number; to: string; toNode: number }
-export type CanvasData = { shapes: Shape[]; connections?: Connection[]; graph?: { expression: string } }
+export type CanvasData = { shapes: Shape[]; connections?: Connection[]; graph?: { expression: string }; mermaid?: string }
+
+const toMermaid = (shapes: Shape[]) => {
+  const body = shapes.find((shape) => shape.kind === 'block' || shape.kind === 'circle' || shape.kind === 'rectangle')
+  const forces = shapes.filter((shape) => shape.kind === 'arrow')
+  return ['flowchart LR', `  objeto${body?.kind === 'circle' ? '(("' : body?.kind === 'rectangle' ? '["' : '["'}${esc(body?.text || 'Objeto')}"${body?.kind === 'circle' ? '))' : body?.kind === 'rectangle' ? ']' : ']'}`, ...forces.map((force, index) => `  fuerza${index + 1}["${esc(force.text || 'Fuerza')}"]`), ...forces.map((force, index) => `  objeto -->|${esc(force.text || 'Fuerza')} ${['→','↘','↓','↙','←','↖','↑','↗'][Math.round((((force.angle % 360) + 360) % 360) / 45) % 8]}| fuerza${index + 1}`)].join('\n')
+}
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 export function graphGeometry(expression: string, zoom = 1, pan = { x: 0, y: 0 }) {
@@ -52,7 +58,11 @@ export function diagramSvg(data: CanvasData) {
   const shapes = data.shapes.filter((s) => (s.kind as string) !== 'rope').map((s) => {
     const label = esc(s.text)
     const common = `transform="translate(${s.x} ${s.y}) rotate(${s.angle})"`
-    if (s.kind === 'arrow') return `<g ${common}><line x1="0" y1="0" x2="70" y2="0" stroke="#3982f6" stroke-width="3" marker-end="url(#arr)"/><text x="74" y="5" fill="#172033" font-size="14">${label}</text></g>`
+    const color = s.color || '#3982f6'
+    if (s.kind === 'arrow') return `<g ${common}><line x1="0" y1="0" x2="${s.length ?? 78}" y2="0" stroke="${color}" stroke-width="3" marker-end="url(#arr)"/><text x="${(s.length ?? 78)+7}" y="5" fill="#172033" font-size="14">${label}</text></g>`
+    if (s.kind === 'line') return `<g ${common}><line x1="-${(s.length ?? 60)/2}" y1="0" x2="${(s.length ?? 60)/2}" y2="0" stroke="${color}" stroke-width="3"/><text y="-7" text-anchor="middle" fill="#172033" font-size="12">${label}</text></g>`
+    if (s.kind === 'circle') return `<g ${common}><ellipse rx="${(s.width ?? 52)/2}" ry="${(s.height ?? 52)/2}" fill="none" stroke="${color}" stroke-width="3"/><text y="5" text-anchor="middle" fill="#172033" font-size="12">${label}</text></g>`
+    if (s.kind === 'rectangle' || s.kind === 'block') return `<g ${common}><rect x="-${(s.width ?? 68)/2}" y="-${(s.height ?? 46)/2}" width="${s.width ?? 68}" height="${s.height ?? 46}" rx="5" fill="#dce9fa" stroke="${color}" stroke-width="2"/><text y="5" text-anchor="middle" fill="#172033" font-size="12">${label}</text></g>`
     if (s.kind === 'label') return `<text ${common} fill="#172033" font-size="14">${label}</text>`
     if (s.kind === 'pulley') return `<g ${common}><circle r="24" fill="#e7eef8" stroke="#3982f6" stroke-width="3"/><circle r="15" fill="none" stroke="#8197b7" stroke-width="3"/><circle r="5" fill="#3982f6"/><path d="M-24 -3 Q-15 -3 -15 0 Q-15 3 -24 3 M24 -3 Q15 -3 15 0 Q15 3 24 3" fill="none" stroke="#3982f6" stroke-width="3"/></g>`
     if (s.kind === 'disk') return `<g ${common}><ellipse rx="24" ry="10" cy="10" fill="#b7c9e2" stroke="#3982f6" stroke-width="2"/><path d="M-24 0 V10 A24 10 0 0 0 24 10 V0" fill="#dce9fa" stroke="#3982f6" stroke-width="2"/><ellipse rx="24" ry="10" fill="#f4f8ff" stroke="#3982f6" stroke-width="2"/><circle r="3" fill="#3982f6"/></g>`
@@ -68,7 +78,7 @@ export function diagramSvg(data: CanvasData) {
   }).join('')
   const grid = geometry ? `${geometry.gridX.map((x) => `<line x1="${x}" y1="0" x2="${x}" y2="240" stroke="#8492a6" stroke-width=".6" opacity=".22"/>`).join('')}${geometry.gridY.map((y) => `<line x1="0" y1="${y}" x2="480" y2="${y}" stroke="#8492a6" stroke-width=".6" opacity=".22"/>`).join('')}` : ''
   const ticks = geometry ? `${geometry.xTicks.map(({x,value})=>`<text x="${x+3}" y="${geometry.yAxis+13}" fill="#66758a" font-size="8">${value}</text>`).join('')}${geometry.yTicks.map(({y,value})=>`<text x="${geometry.xAxis+4}" y="${y-3}" fill="#66758a" font-size="8">${value}</text>`).join('')}` : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 240"><defs><clipPath id="graph-clip"><rect width="480" height="240"/></clipPath><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="#3982f6"/></marker></defs>${data.graph ? `<rect width="480" height="240" fill="#fff"/>${grid}<g clip-path="url(#graph-clip)"><line x1="0" y1="${geometry?.yAxis ?? 120}" x2="480" y2="${geometry?.yAxis ?? 120}" stroke="#66758a"/><line x1="${geometry?.xAxis ?? 240}" y1="0" x2="${geometry?.xAxis ?? 240}" y2="240" stroke="#66758a"/>${ticks}${graph}</g>` : ''}${shapes}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 240"><defs><clipPath id="graph-clip"><rect width="480" height="240"/></clipPath><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="#3982f6"/></marker></defs>${data.graph ? `<rect width="480" height="240" fill="#fff"/>${grid}<g clip-path="url(#graph-clip)"><line x1="0" y1="${geometry?.yAxis ?? 120}" x2="480" y2="${geometry?.yAxis ?? 120}" stroke="#66758a"/><line x1="${geometry?.xAxis ?? 240}" y1="0" x2="${geometry?.xAxis ?? 240}" y2="240" stroke="#66758a"/>${ticks}${graph}</g>` : ''}${shapes}</svg>${data.graph ? '' : `<pre class="mermaid-source">${esc(toMermaid(data.shapes))}</pre>`}`
 }
 
 function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
@@ -77,8 +87,9 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [draggingAnchor, setDraggingAnchor] = useState<{shapeId:string;node:number}|null>(null)
   const [rotatingVector, setRotatingVector] = useState<string|null>(null)
+  const [resizing, setResizing] = useState<string|null>(null)
   const [anchorCursor, setAnchorCursor] = useState<[number,number]|null>(null)
-  const [dragPreview, setDragPreview] = useState<{id:string;x:number;y:number;angle?:number}|null>(null)
+  const [dragPreview, setDragPreview] = useState<{id:string;x:number;y:number;angle?:number;width?:number;height?:number;length?:number}|null>(null)
   const [pan, setPan] = useState({x:0,y:0})
   const [panning, setPanning] = useState<{clientX:number;clientY:number;panX:number;panY:number}|null>(null)
   const [zoom, setZoom] = useState(1)
@@ -91,25 +102,30 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     document.addEventListener('pointerdown', clearSelection)
     return () => document.removeEventListener('pointerdown', clearSelection)
   }, [])
-  const persist = (shapes: Shape[], graph = data.graph, connections = data.connections ?? []) => updateAttributes({ data: { shapes, connections, ...(graph ? { graph } : {}) } })
+  const persist = (shapes: Shape[], graph = data.graph, connections = data.connections ?? []) => updateAttributes({ data: { shapes, connections, ...(graph ? { graph } : { mermaid: toMermaid(shapes) }) } })
   const move = (event: React.PointerEvent<SVGSVGElement>) => {
     if (panning) {
       const bounds=event.currentTarget.getBoundingClientRect()
       setPan({x:panning.panX+(event.clientX-panning.clientX)*480/bounds.width,y:panning.panY+(event.clientY-panning.clientY)*240/bounds.height})
       return
     }
-    if (!dragging && !draggingAnchor && !rotatingVector) return
+    if (!dragging && !draggingAnchor && !rotatingVector && !resizing) return
     const [x,y] = coord(event)
     if (draggingAnchor) { setAnchorCursor([x,y]); return }
     if (rotatingVector) {
       const origin = data.shapes.find(s => s.id === rotatingVector)
-      if (origin) setDragPreview({ id: rotatingVector, x: origin.x, y: origin.y, angle: Math.atan2(y-origin.y,x-origin.x)*180/Math.PI })
+      if (origin) setDragPreview({ id: rotatingVector, x: origin.x, y: origin.y, angle: Math.atan2(y-origin.y,x-origin.x)*180/Math.PI, length: Math.max(20,Math.hypot(y-origin.y,x-origin.x)) })
+      return
+    }
+    if (resizing) {
+      const shape = data.shapes.find(s => s.id === resizing)
+      if (shape) setDragPreview({ id: resizing, x: shape.x, y: shape.y, width: Math.max(16, Math.abs(x-shape.x)*2), height: Math.max(16, Math.abs(y-shape.y)*2), ...(shape.kind==='line'?{length:Math.max(20,Math.hypot(x-shape.x,y-shape.y)*2)}:{}) })
       return
     }
     setDragPreview({id:dragging!,x,y})
   }
   const coord = (event: React.PointerEvent<SVGSVGElement>): [number,number] => { const b=event.currentTarget.getBoundingClientRect(); return [(event.clientX-b.left)*480/b.width, (event.clientY-b.top)*240/b.height] }
-  const currentShapes = data.shapes.map(s=>s.id===dragPreview?.id?{...s,x:dragPreview.x,y:dragPreview.y,...(dragPreview?.angle !== undefined ? {angle: dragPreview.angle} : {})}:s)
+  const currentShapes = data.shapes.map(s=>s.id===dragPreview?.id?{...s,x:dragPreview.x,y:dragPreview.y,...(dragPreview?.angle !== undefined ? {angle: dragPreview.angle} : {}),...(dragPreview && 'length' in dragPreview ? {length:dragPreview.length} : {}),...(dragPreview && 'width' in dragPreview ? {width:dragPreview.width,height:dragPreview.height} : {})}:s)
   const anchors = (s: Shape): [number,number][] => {
     if (s.kind === 'arrow') return [[s.x,s.y]]
     const angle = s.angle * Math.PI / 180
@@ -131,24 +147,29 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
       setDraggingAnchor(null);setAnchorCursor(null)
     } else if (dragging && dragPreview) persist(currentShapes)
     if (rotatingVector && dragPreview) persist(currentShapes)
+    if (resizing && dragPreview) persist(currentShapes)
     if (rotatingVector) setRotatingVector(null)
+    if (resizing) setResizing(null)
     setDragging(null);setDragPreview(null)
   }
   const updateText = (id: string, text: string) => persist(data.shapes.map((shape) => shape.id === id ? { ...shape, text } : shape))
+  const updateColor = (id: string, color: string) => persist(data.shapes.map((shape) => shape.id === id ? { ...shape, color } : shape))
   return (
     <NodeViewWrapper ref={wrapperRef} className={`diagram-node${data.graph ? ' function-plot' : ' physics-scene'}`}>
       {data.graph && <div className="diagram-head"><span><span className="diagram-dot" />y = {data.graph.expression}</span><div><button onClick={() => setZoom((z) => Math.max(.6, z - .2))} aria-label="Alejar">−</button><button onClick={() => setZoom((z) => Math.min(2.4, z + .2))} aria-label="Acercar">+</button><button onClick={() => {setPan({x:0,y:0});setZoom(1)}} aria-label="Centrar gráfica">⌂</button><button onClick={() => setExpanded(!expanded)} aria-label="Expandir gráfica">⤢</button><button onClick={deleteNode} aria-label="Quitar gráfica">×</button></div></div>}
-      {active && !data.graph && <div className="diagram-actions"><button className="remove-shape" onClick={() => { persist(data.shapes.filter((shape) => shape.id !== active)); setActive(null) }}>Quitar objeto</button></div>}
+      {active && !data.graph && <div className="diagram-actions"><label className="shape-color-control" title="Color de la forma"><input type="color" value={data.shapes.find(shape=>shape.id===active)?.color??'#3982f6'} onChange={event=>updateColor(active,event.target.value)}/><span>Color</span></label><button className="remove-shape" onClick={() => { persist(data.shapes.filter((shape) => shape.id !== active)); setActive(null) }}>Quitar forma</button></div>}
       {data.graph && <div className="graph-hint">Arrastrá el plano para moverlo · usá la rueda para acercar o alejar</div>}
       <svg className={`${expanded ? 'diagram-expanded' : ''}${panning ? ' is-panning' : ''}`} viewBox="0 0 480 240" role="img" aria-label={data.graph ? 'Gráfica de función' : 'Elementos de física sin marco'} onWheel={(event)=>{if(data.graph){event.preventDefault();setZoom(z=>Math.max(.6,Math.min(2.4,z*(event.deltaY<0?1.12:.89))))}}} onPointerDown={(event)=>{if(data.graph && !(event.target as Element).closest('.shape')){event.currentTarget.setPointerCapture(event.pointerId);setPanning({clientX:event.clientX,clientY:event.clientY,panX:pan.x,panY:pan.y})}}} onPointerMove={move} onPointerUp={(event)=>{if(panning)setPanning(null);finishAnchor(event)}}>
         <defs><pattern id="grid-dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="currentColor" opacity=".18" /></pattern><marker id="vector-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" /></marker></defs>
         {data.graph && <g className="graph-plane">{(() => { const geometry=graphGeometry(data.graph!.expression,zoom,pan); return <>{geometry.gridX.map((x,i)=><line key={`gx${i}`} x1={x} y1="0" x2={x} y2="240" className={Math.round((x-geometry.xAxis)/geometry.scale)%5===0?'graph-grid major':'graph-grid'}/>)}{geometry.gridY.map((y,i)=><line key={`gy${i}`} x1="0" y1={y} x2="480" y2={y} className={Math.round((geometry.yAxis-y)/geometry.scale)%5===0?'graph-grid major':'graph-grid'}/>)}<line x1="0" y1={geometry.yAxis} x2="480" y2={geometry.yAxis} className="diagram-axis"/><line x1={geometry.xAxis} y1="0" x2={geometry.xAxis} y2="240" className="diagram-axis"/>{geometry.xTicks.map(t=><text key={`xt${t.value}`} x={t.x+3} y={geometry.yAxis+13} className="axis-label">{t.value}</text>)}{geometry.yTicks.map(t=><text key={`yt${t.value}`} x={geometry.xAxis+4} y={t.y-3} className="axis-label">{t.value}</text>)}<text x="464" y={geometry.yAxis-5} className="axis-label">x</text><text x={geometry.xAxis+5} y="11" className="axis-label">y</text><path d={geometry.path} className="function-graph"/></> })()}</g>}
         {currentShapes.filter((shape) => (shape.kind as string) !== 'rope').map((shape) => <g key={shape.id} className={`shape ${active === shape.id ? 'active' : ''}`} onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id); setDragging(shape.id); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId) }}>
           <rect x={shape.x-48} y={shape.y-36} width="96" height="72" fill="transparent" className="shape-hit-area" />
-          {shape.kind === 'block' && <><rect x={shape.x - 34} y={shape.y - 23} width="68" height="46" rx="7" className="diagram-block" /><foreignObject x={shape.x - 22} y={shape.y - 10} width="44" height="22"><input className="shape-label" value={shape.text} aria-label="Block label" onPointerDown={(event) => { setActive(shape.id); setDragging(shape.id); (event.currentTarget.closest('svg') as SVGSVGElement | null)?.setPointerCapture(event.pointerId) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject></>}
-          {shape.kind === 'arrow' && <><line x1={shape.x} y1={shape.y} x2={shape.x + Math.cos(shape.angle * Math.PI / 180) * 78} y2={shape.y + Math.sin(shape.angle * Math.PI / 180) * 78} className="vector-line" markerEnd="url(#vector-head)" /><foreignObject x={shape.x + Math.cos(shape.angle * Math.PI / 180) * 82 - 14} y={shape.y + Math.sin(shape.angle * Math.PI / 180) * 82 - 14} width="56" height="28"><input className="shape-label vector-label" value={shape.text} aria-label="Vector label" onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject><circle cx={shape.x} cy={shape.y} r="4" className="vector-origin" /><circle cx={shape.x + Math.cos(shape.angle * Math.PI / 180) * 78} cy={shape.y + Math.sin(shape.angle * Math.PI / 180) * 78} r="10" className="vector-rotate-handle" onPointerDown={(event)=>{event.stopPropagation();setActive(shape.id);setRotatingVector(shape.id);event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId)}}/></>}
+          {shape.kind === 'arrow' && <><line x1={shape.x} y1={shape.y} x2={shape.x + Math.cos(shape.angle * Math.PI / 180) * (shape.length??78)} y2={shape.y + Math.sin(shape.angle * Math.PI / 180) * (shape.length??78)} className="vector-line" style={{stroke:shape.color??undefined,color:shape.color??undefined}} markerEnd="url(#vector-head)" /><foreignObject x={shape.x + Math.cos(shape.angle * Math.PI / 180) * ((shape.length??78)+4) - 14} y={shape.y + Math.sin(shape.angle * Math.PI / 180) * ((shape.length??78)+4) - 14} width="72" height="28"><input className="shape-label vector-label" value={shape.text} aria-label="Nombre de la fuerza" onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject><circle cx={shape.x} cy={shape.y} r="4" className="vector-origin" /><circle cx={shape.x + Math.cos(shape.angle * Math.PI / 180) * (shape.length??78)} cy={shape.y + Math.sin(shape.angle * Math.PI / 180) * (shape.length??78)} r="10" className="vector-rotate-handle" onPointerDown={(event)=>{event.stopPropagation();setActive(shape.id);setRotatingVector(shape.id);event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId)}}/></>}
+          {shape.kind === 'line' && <line x1={shape.x-Math.cos(shape.angle*Math.PI/180)*(shape.length??70)/2} y1={shape.y-Math.sin(shape.angle*Math.PI/180)*(shape.length??70)/2} x2={shape.x+Math.cos(shape.angle*Math.PI/180)*(shape.length??70)/2} y2={shape.y+Math.sin(shape.angle*Math.PI/180)*(shape.length??70)/2} stroke={shape.color??'currentColor'} strokeWidth="4" className="freeform-line"/>}
+          {shape.kind === 'circle' && <ellipse cx={shape.x} cy={shape.y} rx={(shape.width??52)/2} ry={(shape.height??52)/2} fill="none" stroke={shape.color??'currentColor'} strokeWidth="3"/>}
+          {(shape.kind === 'rectangle' || shape.kind === 'block') && <><rect x={shape.x-(shape.width??68)/2} y={shape.y-(shape.height??46)/2} width={shape.width??68} height={shape.height??46} rx="6" fill="transparent" stroke={shape.color??'currentColor'} strokeWidth="3"/><foreignObject x={shape.x-25} y={shape.y-12} width="50" height="24"><input className="shape-label" value={shape.text} aria-label="Etiqueta del objeto" onPointerDown={event=>event.stopPropagation()} onChange={event=>updateText(shape.id,event.target.value)}/></foreignObject></>}
           {shape.kind === 'label' && <foreignObject x={shape.x - 48} y={shape.y - 15} width="96" height="30"><input className="shape-label free-label" value={shape.text} aria-label="Diagram text" onPointerDown={(event) => { event.stopPropagation(); setActive(shape.id) }} onChange={(event) => updateText(shape.id, event.target.value)} /></foreignObject>}
-          {!['block','arrow','label','pulley','disk','sphere','ring','cylinder','spring','rotation','rod','lever','radius','diameter','incline','support'].includes(shape.kind) && <circle cx={shape.x} cy={shape.y} r="17" className="physics-object"/>}
+          {!['block','arrow','label','line','circle','rectangle','pulley','disk','sphere','ring','cylinder','spring','rotation','rod','lever','radius','diameter','incline','support'].includes(shape.kind) && <circle cx={shape.x} cy={shape.y} r="17" className="physics-object"/>}
           {['pulley','disk','sphere','ring','cylinder','spring','rotation','rod','lever','radius','diameter','incline','support'].includes(shape.kind) && <g transform={`translate(${shape.x} ${shape.y}) rotate(${shape.angle})`} className="physics-object-drawing">
             {shape.kind==='pulley'&&<><circle r="24" className="object-fill"/><circle r="15" className="object-inner"/><circle r="4" className="object-hub"/><path d="M-24 -3 Q-15 -3 -15 0 Q-15 3 -24 3 M24 -3 Q15 -3 15 0 Q15 3 24 3" className="object-detail"/></>}
             {shape.kind==='disk'&&<><path d="M-24 0 V10 A24 10 0 0 0 24 10 V0" className="object-side"/><ellipse rx="24" ry="10" className="object-fill"/><circle r="3" className="object-hub"/></>}
@@ -164,13 +185,14 @@ function DiagramView({ node, updateAttributes, deleteNode }: NodeViewProps) {
             {shape.kind==='incline'&&<><path d="M-42 24 L42 24 L42 -25 Z" className="object-fill"/><path d="M-24 22 A20 20 0 0 1 -7 12" fill="none" stroke="#e59436" strokeWidth="2"/><text x="-14" y="18" className="physics-svg-label">{shape.angleValue??30}°</text></>}
             {shape.kind==='support'&&<><path d="M0 -25 L-22 18 L22 18 Z" className="object-fill"/><path d="M-26 20 l6 6 m4 -6 l6 6 m4 -6 l6 6 m4 -6 l6 6 m4 -6 l6 6" className="object-detail"/></>}
           </g>}
-          {!['block','arrow','label','spring','rotation','radius','diameter','incline','support'].includes(shape.kind) && <text x={shape.x} y={shape.y+39} textAnchor="middle" className="axis-label">{shape.text}</text>}
-          {active === shape.id && <>{anchors(shape).map(([x,y],i) => <circle key={i} cx={x} cy={y} r="8" className={`diagram-anchor${draggingAnchor?.shapeId===shape.id&&draggingAnchor.node===i?' is-dragging':''}`} onPointerDown={(event)=>{event.stopPropagation();event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);setDragging(null);setDragPreview(null);setDraggingAnchor({shapeId:shape.id,node:i});setAnchorCursor([x,y])}} />)}</>}
+          {!['block','arrow','label','line','circle','rectangle','spring','rotation','radius','diameter','incline','support'].includes(shape.kind) && <text x={shape.x} y={shape.y+39} textAnchor="middle" className="axis-label">{shape.text}</text>}
+          {active === shape.id && <>{anchors(shape).map(([x,y],i) => <circle key={i} cx={x} cy={y} r="8" className={`diagram-anchor${draggingAnchor?.shapeId===shape.id&&draggingAnchor.node===i?' is-dragging':''}`} onPointerDown={(event)=>{event.stopPropagation();event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);setDragging(null);setDragPreview(null);setDraggingAnchor({shapeId:shape.id,node:i});setAnchorCursor([x,y])}} />)}{shape.kind!=='arrow'&&<circle cx={shape.kind==='line'?shape.x+Math.cos(shape.angle*Math.PI/180)*(shape.length??70)/2:shape.x+(shape.width??68)/2} cy={shape.kind==='line'?shape.y+Math.sin(shape.angle*Math.PI/180)*(shape.length??70)/2:shape.y+(shape.height??46)/2} r="7" className="resize-handle" onPointerDown={event=>{event.stopPropagation();setActive(shape.id);setResizing(shape.id);event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId)}}/>}</>}
         </g>)}
         {!data.graph && (data.connections??[]).map(connection=>{const from=currentShapes.find(s=>s.id===connection.from),to=currentShapes.find(s=>s.id===connection.to);if(!from||!to)return null;const a=anchors(from)[connection.fromNode],b=anchors(to)[connection.toNode];return <g key={connection.id} className="diagram-connection"><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} className="connection-line"/><circle cx={a[0]} cy={a[1]} r="4" className="connection-joint"/><circle cx={b[0]} cy={b[1]} r="4" className="connection-joint"/></g>})}
         {draggingAnchor&&anchorCursor&&<><line x1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][0]} y1={anchors(data.shapes.find(s=>s.id===draggingAnchor.shapeId)!)[draggingAnchor.node][1]} x2={anchorCursor[0]} y2={anchorCursor[1]} className="anchor-drag-line"/><circle cx={anchorCursor[0]} cy={anchorCursor[1]} r="7" className="anchor-cursor"/></>}
       </svg>
       {!data.graph && data.shapes.length===0 && <div className="physics-empty-note">Elegí una pieza en Herramientas → Física para empezar el diagrama.</div>}
+      {!data.graph && data.shapes.length>0 && <details className="mermaid-disclosure"><summary>Código Mermaid · flowchart</summary><pre>{toMermaid(data.shapes)}</pre></details>}
       {data.graph && <div className="diagram-foot">Escala igual en ambos ejes · el plano se puede mover y centrar.</div>}
     </NodeViewWrapper>
   )

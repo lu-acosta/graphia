@@ -7,9 +7,10 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import { NodeSelection } from '@tiptap/pm/state'
-import { Bold, Code2, Heading1, Heading2, Italic, Link2, List, ListOrdered, Minus, Plus, Redo2, Sigma, Strikethrough, Table2, Underline as UnderlineIcon, Undo2, X, Wrench, Orbit, Circle, CircleDot, Disc3, Cylinder, Ruler, Triangle, MoveUpRight, Activity } from 'lucide-react'
+import { Bold, Code2, Heading1, Heading2, Italic, Link2, List, ListOrdered, Minus, Plus, Redo2, Sigma, Strikethrough, Table2, Underline as UnderlineIcon, Undo2, X, Wrench, Circle, Square, MoveUpRight, Activity, Minus as LineIcon, Type } from 'lucide-react'
 import { FormulaNode } from '../math/FormulaNode'
 import { DiagramNode, graphGeometry, type ShapeKind } from './DiagramNode'
+import { SignChartNode, blankSignChart } from './SignChartNode'
 
 type Props = { content: string; update: (html: string) => void; suggestions: boolean; language: 'es' | 'en'; title: string; onTitleChange: (title: string) => void; onTitleCommit: () => void; onSaved?: () => void; saveStatus?: 'saved'|'saving'|'error'; toolsOpen: boolean; toggleTools: () => void }
 const labels = {
@@ -37,8 +38,19 @@ const commands = [
   { es: 'giro antihorario', en: 'counterclockwise rotation', aliases: ['flecha curva izquierda'], latex: '\\circlearrowleft' },
   { es: 'giro horario', en: 'clockwise rotation', aliases: ['flecha curva derecha'], latex: '\\circlearrowright' },
   { es: 'infinito', en: 'infinity', aliases: [], latex: '\\infty' },
+  { es: 'no existencia', en: 'does not exist', aliases: ['no existe', 'noexistencia', 'existe no'], latex: '\\nexists' },
+  { es: 'unión', en: 'union', aliases: ['union'], latex: '\\cup' },
+  { es: 'conjunción', en: 'conjunction', aliases: ['conjuncion', 'y lógico'], latex: '\\land' },
+  { es: 'disyunción', en: 'disjunction', aliases: ['disyuncion', 'o lógico'], latex: '\\lor' },
+  { es: 'entonces', en: 'therefore', aliases: ['por lo tanto', 'implica'], latex: '\\therefore' },
+  { es: 'si', en: 'if', aliases: ['implicación', 'implicacion'], latex: '\\Rightarrow' },
+  { es: 'si y solo si', en: 'if and only if', aliases: ['sisi', 'bicondicional'], latex: '\\Leftrightarrow' },
+  { es: 'límite', en: 'limit', aliases: ['limite', 'lim'], latex: '\\lim_{x\\to\\placeholder{}}\\placeholder{}' },
+  { es: 'logaritmo', en: 'logarithm', aliases: ['log', 'ln', 'logaritmo natural'], latex: '\\log_{\\placeholder{}}\\left(\\placeholder{}\\right)' },
+  { es: 'número de Euler', en: 'Euler’s number', aliases: ['euler', 'numero de euler', 'constante e'], latex: 'e' },
+  { es: 'identidad de Euler', en: 'Euler’s identity', aliases: ['identidad euler'], latex: 'e^{i\\pi}+1=0' },
 ]
-const symbols = ['∞', 'π', 'Σ', '∫', '√', '≤', '≥', '±', '∈', '∉']
+const symbols = ['∞', 'π', 'Σ', '∫', '√', '≤', '≥', '±', '∈', '∉', '∄', '∪', '∧', '∨', '∴', '⇒', '⇔']
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
 const matchesCommand = (command: typeof commands[number], query: string, language: 'es' | 'en') => [command[language], command.es, command.en, ...command.aliases].some((value) => normalize(value).includes(normalize(query)))
 type MathCompletionField = HTMLElement & { focus: () => void; insert: (latex: string, options?: { selectionMode?: string }) => boolean; executeCommand: (command: string) => boolean }
@@ -62,7 +74,7 @@ export function ScientificEditor({ content, update, suggestions, language, title
     return () => window.removeEventListener('graphia:math-query', onMathQuery)
   }, [])
   const editor = useEditor({
-    extensions: [StarterKit, Underline, Link.configure({ openOnClick: false }), Image.configure({ inline: false, allowBase64: true }), Table.configure({ resizable: true }), TableRow, TableHeader, TableCell, Placeholder.configure({ placeholder: language === 'es' ? 'Empezá a escribir…' : 'Start writing…' }), FormulaNode, DiagramNode],
+    extensions: [StarterKit, Underline, Link.configure({ openOnClick: false }), Image.configure({ inline: false, allowBase64: true }), Table.configure({ resizable: true }), TableRow, TableHeader, TableCell, Placeholder.configure({ placeholder: language === 'es' ? 'Empezá a escribir…' : 'Start writing…' }), FormulaNode, DiagramNode, SignChartNode],
     content,
     onUpdate: ({ editor: instance }) => {
       update(instance.getHTML())
@@ -129,29 +141,29 @@ export function ScientificEditor({ content, update, suggestions, language, title
     focusInsertedFormula(editor, insertionPosition)
     setShowMathMenu(false); onSaved?.()
   }, [editor, onSaved])
-  const addDiagram = useCallback((kind?: ShapeKind, angleValue = 30) => {
+  const addDiagram = useCallback((kind?: ShapeKind, angleValue = -90, label?: string) => {
     if (!editor) return
+    const textByKind: Partial<Record<ShapeKind,string>> = { block:'Objeto', arrow:label ?? 'Fuerza', line:'', circle:'', rectangle:'Objeto', label:'Texto' }
+    const createShape = (shapeKind: ShapeKind, x: number, y: number) => ({ id: crypto.randomUUID(), kind: shapeKind, x, y, text: textByKind[shapeKind] ?? '', angle: shapeKind === 'arrow' ? angleValue : 0, ...(shapeKind === 'arrow' ? { length: 78 } : {}), ...(shapeKind === 'incline' ? { angleValue } : {}) })
     const selection = editor.state.selection
     if (selection instanceof NodeSelection && selection.node.type.name === 'scientificDiagram') {
-      const data = selection.node.attrs.data as { shapes: Array<{id:string;kind:ShapeKind;x:number;y:number;text:string;angle:number}>; graph?: {expression:string} }
+      const data = selection.node.attrs.data as { shapes: Array<{id:string;kind:ShapeKind;x:number;y:number;text:string;angle:number}>; graph?: {expression:string}; mermaid?: string }
       if (data.graph) {
-        const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
-        editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : [] } } }).run()
+        editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: [createShape(kind ?? 'block', 240, 120)], mermaid: 'flowchart LR\\n  objeto["Objeto"]' } } }).run()
         return
       }
-      const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
-      const index = (data.shapes ?? []).length
-      const shapes = kind ? [...(data.shapes ?? []), { id: crypto.randomUUID(), kind, x: 104 + (index % 4) * 92, y: 72 + (Math.floor(index / 4) % 2) * 88, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : data.shapes ?? []
+      const body = (data.shapes ?? []).find(shape => ['block','circle','rectangle'].includes(shape.kind))
+      const shapes = kind ? [...(data.shapes ?? []), createShape(kind, kind === 'arrow' ? (body?.x ?? 240) : 104 + ((data.shapes ?? []).length % 4) * 92, kind === 'arrow' ? (body?.y ?? 120) : 72 + (Math.floor((data.shapes ?? []).length / 4) % 2) * 88)] : data.shapes ?? [createShape('block', 240, 120)]
       editor.commands.updateAttributes('scientificDiagram', { data: { ...data, shapes } }); editor.commands.focus(); return
     }
-    const textByKind: Partial<Record<ShapeKind,string>> = { block:'m', arrow:'F', pulley:'m', disk:'I', sphere:'m', ring:'R', cylinder:'m', rod:'L', lever:'τ', incline:'θ', spring:'k', rotation:'ω', radius:'r', diameter:'d' }
-    const shapes = kind ? [{ id: crypto.randomUUID(), kind, x: 210, y: 112, text: textByKind[kind] ?? '', angle: kind === 'arrow' ? -90 : 0, ...(kind === 'incline' ? { angleValue } : {}) }] : []
-    editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes } } }).run()
+    const shapes = [createShape(kind ?? 'block', 240, 120)]
+    editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes, mermaid: 'flowchart LR\\n  objeto["Objeto"]' } } }).run()
   }, [editor])
   const insertGraph = useCallback((expression: string) => {
-    if (!editor || !expression.trim()) return
+    if (!editor) return
     editor.chain().focus().insertContent({ type: 'scientificDiagram', attrs: { data: { shapes: [], graph: { expression: expression.trim() } } } }).run()
   }, [editor])
+  const addSignChart = useCallback(() => editor?.chain().focus().insertContent({ type: 'signChart', attrs: { data: blankSignChart() } }).run(), [editor])
   const addTable = useCallback(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), [editor])
   const addLink = useCallback(() => {
     if (!editor) return
@@ -176,6 +188,13 @@ export function ScientificEditor({ content, update, suggestions, language, title
     picker.click()
   }, [editor, language])
 
+  const completionStyle = useMemo(() => {
+    if (completionQuery === null || !editor) return undefined
+    const rect = mathCompletion ? mathCompletion.field.getBoundingClientRect() : editor.view.coordsAtPos(editor.state.selection.from)
+    const top = rect.bottom + 6
+    return { position: 'fixed' as const, top, left: Math.max(8, Math.min(rect.left, window.innerWidth - 278)), maxHeight: Math.max(56, window.innerHeight - top - 8), overflowY: 'auto' as const }
+  }, [completionQuery, editor, mathCompletion])
+
   if (!editor) return <div className="editor-loading" />
   return (
     <div className={`editor-shell editor-layout${toolsOpen ? ' tools-open' : ''}`}>
@@ -194,27 +213,33 @@ export function ScientificEditor({ content, update, suggestions, language, title
           <div className="toolbar-group optional-tools"><button className="tool-icon" aria-label="Heading 1" title="Heading 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 /></button><button className="tool-icon" aria-label="Heading 2" title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 /></button><button className="tool-icon" aria-label="Horizontal rule" title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus /></button></div>
         </div>
         <div className="paper-scroll"><div className="paper" onClick={(event) => { if (!(event.target as HTMLElement).closest('.document-prose')) editor.commands.focus('end') }}><div className="paper-inner"><EditorContent editor={editor} />
-          {completionQuery !== null && available.length > 0 && <div className="suggestion-menu" role="listbox" aria-label={language === 'es' ? 'Sugerencias matemáticas' : 'Math suggestions'} style={mathCompletion ? (() => { const rect = mathCompletion.field.getBoundingClientRect(); return { position: 'fixed' as const, top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 230)), left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)) } })() : undefined}>{available.map((item, index) => <button key={item.es} role="option" aria-selected={index === selectedSuggestion} onMouseDown={(event) => { event.preventDefault(); insertCommand(item.latex) }}><span className="suggestion-glyph">{item.latex.includes('sqrt') ? '√' : item.latex.includes('sum') ? 'Σ' : '∑'}</span><span>{item[commandLanguage]}</span><kbd>↵</kbd></button>)}</div>}
+          {completionQuery !== null && available.length > 0 && <div className="suggestion-menu" role="listbox" aria-label={language === 'es' ? 'Sugerencias matemáticas' : 'Math suggestions'} style={completionStyle}>{available.map((item, index) => <button key={item.es} role="option" aria-selected={index === selectedSuggestion} onMouseDown={(event) => { event.preventDefault(); insertCommand(item.latex) }}><span className="suggestion-glyph">{item.latex.includes('sqrt') ? '√' : item.latex.includes('sum') ? 'Σ' : '∑'}</span><span>{item[commandLanguage]}</span><kbd>↵</kbd></button>)}</div>}
         </div></div></div>
       </section>
-      {toolsOpen && <ToolsPanel language={language} addDiagram={addDiagram} insertGraph={insertGraph} close={toggleTools} />}
+      {toolsOpen && <ToolsPanel language={language} addDiagram={addDiagram} insertGraph={insertGraph} addSignChart={addSignChart} close={toggleTools} />}
     </div>
   )
 }
 
 const physicsTools: { kind: ShapeKind; es: string; en: string; icon: typeof Circle }[] = [
-  {kind:'pulley',es:'Polea',en:'Pulley',icon:CircleDot},{kind:'disk',es:'Disco',en:'Disk',icon:Disc3},{kind:'sphere',es:'Esfera',en:'Sphere',icon:Circle},{kind:'ring',es:'Aro',en:'Ring',icon:CircleDot},{kind:'cylinder',es:'Cilindro',en:'Cylinder',icon:Cylinder},{kind:'rod',es:'Barra',en:'Rod',icon:Minus},{kind:'support',es:'Apoyo',en:'Support',icon:Triangle},{kind:'lever',es:'Palanca',en:'Lever',icon:MoveUpRight},{kind:'incline',es:'Plano inclinado',en:'Incline',icon:Triangle},{kind:'spring',es:'Resorte',en:'Spring',icon:Activity},{kind:'block',es:'Bloque',en:'Block',icon:MoveUpRight},{kind:'arrow',es:'Vector',en:'Vector',icon:MoveUpRight},{kind:'rotation',es:'Sentido de giro',en:'Rotation',icon:Orbit},{kind:'radius',es:'Radio',en:'Radius',icon:Ruler},{kind:'diameter',es:'Diámetro',en:'Diameter',icon:Ruler},
+  {kind:'block',es:'Objeto central',en:'Central object',icon:Square},{kind:'arrow',es:'Fuerza (flecha)',en:'Force (arrow)',icon:MoveUpRight},{kind:'line',es:'Línea',en:'Line',icon:LineIcon},{kind:'circle',es:'Círculo',en:'Circle',icon:Circle},{kind:'rectangle',es:'Caja',en:'Box',icon:Square},{kind:'label',es:'Texto',en:'Text',icon:Type},
 ]
-function ToolsPanel({ language, addDiagram, insertGraph, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind,angleValue?:number)=>void;insertGraph:(expression:string)=>void;close:()=>void}) {
+function ToolsPanel({ language, addDiagram, insertGraph, addSignChart, close }: {language:'es'|'en';addDiagram:(kind?:ShapeKind,angleValue?:number,label?:string)=>void;insertGraph:(expression:string)=>void;addSignChart:()=>void;close:()=>void}) {
   const [expression,setExpression] = useState('sin(x)')
-  const [angle,setAngle] = useState(30)
-  const [toolMode,setToolMode] = useState<'functions'|'physics'>('functions')
+  const [toolMode,setToolMode] = useState<'functions'|'physics'|'signs'>('functions')
   const es=language==='es'
-  const validExpression=Boolean(graphGeometry(expression).path)
+  const validExpression=expression.trim()==='' || Boolean(graphGeometry(expression).path)
   return <aside className="tools-panel">
     <header><div><Wrench size={16}/><strong>{es?'Herramientas':'Tools'}</strong></div><button aria-label={es?'Cerrar herramientas':'Close tools'} onClick={close}><X size={16}/></button></header>
-    <div className="tool-mode-switch" role="tablist" aria-label={es?'Tipo de herramienta':'Tool type'}><button role="tab" aria-selected={toolMode==='functions'} onClick={()=>setToolMode('functions')}>{es?'Funciones':'Functions'}</button><button role="tab" aria-selected={toolMode==='physics'} onClick={()=>setToolMode('physics')}>{es?'Física':'Physics'}</button></div>
-    {toolMode==='functions' ? <section className="tools-section"><h3>{es?'Graficar una función':'Graph a function'}</h3><p className="tools-hint">{es?'Escribí una expresión y se insertará como un plano interactivo en el documento.':'Enter an expression to insert an interactive coordinate plane into the document.'}</p><label className="function-input"><span>f(x) =</span><input aria-label={es?'Expresión de la función':'Function expression'} aria-invalid={!validExpression} value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&validExpression)insertGraph(expression)}} placeholder="2x^2"/><button onClick={()=>insertGraph(expression)} disabled={!validExpression}><Activity size={15}/>{es?'Graficar':'Graph'}</button></label>{!validExpression&&<p className="function-error" role="status">{es?'Revisá la expresión; no se pudo interpretar.':'Check the expression; it could not be parsed.'}</p>}<p className="tools-hint">{es?'Ejemplos: 2x^2, sin(x), (x+1)(x-2). Usá x, π, e, +, −, ×, /, ^, sqrt, abs, exp y log.':'Examples: 2x^2, sin(x), (x+1)(x-2). Use x, π, e, +, −, ×, /, ^, sqrt, abs, exp and log.'}</p></section> : <><section className="tools-section"><h3>{es?'Elementos de física':'Physics elements'}</h3><p className="tools-hint">{es?'Insertá un objeto y arrastralo libremente. Seleccionalo para moverlo o usar sus puntos de anclaje magnéticos.':'Insert an object and drag it freely. Select it to move it or use its magnetic anchor points.'}</p><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div></section><section className="tools-section"><h3>{es?'Plano inclinado':'Inclined plane'}</h3><label className="angle-control">{es?'Ángulo de la superficie':'Surface angle'} <input type="range" min="5" max="85" value={angle} onChange={e=>setAngle(+e.target.value)}/><span>{angle}°</span></label><button className="incline-insert" onClick={()=>addDiagram('incline',angle)}>{es?'Insertar plano inclinado':'Insert inclined plane'} · {angle}°</button><button className="new-diagram-tool" onClick={()=>addDiagram(undefined)}>{es?'Nuevo diagrama físico':'New physics diagram'}</button></section></>}
+    <div className="tool-mode-switch" role="tablist" aria-label={es?'Tipo de herramienta':'Tool type'}><button role="tab" aria-selected={toolMode==='functions'} onClick={()=>setToolMode('functions')}>{es?'Funciones':'Functions'}</button><button role="tab" aria-selected={toolMode==='physics'} onClick={()=>setToolMode('physics')}>{es?'Física':'Physics'}</button><button role="tab" aria-selected={toolMode==='signs'} onClick={()=>setToolMode('signs')}>{es?'Signos':'Signs'}</button></div>
+    {toolMode==='signs' ? <section className="tools-section"><h3>{es?'Esquema de signos':'Sign chart'}</h3><p className="tools-hint">{es?'Marcá valores críticos y asigná positivo, negativo, cero, no existe o una condición propia a cada intervalo.':'Mark critical values and assign a sign or custom condition to every interval.'}</p><button className="new-diagram-tool" onClick={addSignChart}>{es?'Insertar esquema de signos':'Insert sign chart'}</button></section> : toolMode==='functions' ? <section className="tools-section">
+      <h3>{es?'Graficar una función':'Graph a function'}</h3>
+      <p className="tools-hint">{es?'Escribí una expresión y se insertará como un plano interactivo en el documento.':'Enter an expression to insert an interactive coordinate plane into the document.'}</p>
+      <label className="function-input"><span>f(x) =</span><input aria-label={es?'Expresión de la función':'Function expression'} aria-invalid={!validExpression} value={expression} onChange={e=>setExpression(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&validExpression)insertGraph(expression)}} placeholder="2x^2"/><button onClick={()=>insertGraph(expression)} disabled={!validExpression}><Activity size={15}/>{expression.trim()?(es?'Graficar':'Graph'):(es?'Insertar plano':'Insert plane')}</button></label>
+      {!validExpression&&<p className="function-error" role="status">{es?'Revisá la expresión; no se pudo interpretar.':'Check the expression; it could not be parsed.'}</p>}
+      <p className="tools-hint">{es?'Ejemplos: 2x^2, sin(x), (x+1)(x-2). Usá x, π, e, +, −, ×, /, ^, sqrt, abs, exp y log.':'Examples: 2x^2, sin(x), (x+1)(x-2). Use x, π, e, +, −, ×, /, ^, sqrt, abs, exp and log.'}</p>
+      <button className="new-diagram-tool" onClick={()=>insertGraph('')}>{es?'Insertar bloque de función vacío':'Insert empty function block'}</button>
+    </section> : <><section className="tools-section"><h3>{es?'Diagrama de cuerpo libre (DCL)':'Free-body diagram (FBD)'}</h3><p className="tools-hint">{es?'Insertá un objeto y agregá fuerzas como flechas. Estirá, girá y recoloreá cada forma; arrastrá la punta de una flecha para orientar el vector.':'Add a body and force arrows. Stretch, rotate, and recolor each shape; drag an arrow tip to set its direction.'}</p><button className="new-diagram-tool" onClick={()=>addDiagram(undefined)}>{es?'Nuevo DCL':'New free-body diagram'}</button><div className="physics-grid">{physicsTools.map(item=><button key={item.kind} onClick={()=>addDiagram(item.kind)}><item.icon size={15}/><span>{es?item.es:item.en}</span></button>)}</div></section><section className="tools-section"><h3>{es?'Fuerzas frecuentes':'Common forces'}</h3><div className="physics-grid force-presets">{[['Peso','Peso','Weight',90],['Normal','Normal','Normal',-90],['Tensión','Tensión','Tension',-45],['Fricción','Fricción','Friction',180]].map(([key,labelEs,labelEn,angle])=><button key={String(key)} onClick={()=>addDiagram('arrow',Number(angle),es?String(labelEs):String(labelEn))}><MoveUpRight size={15}/><span>{es?labelEs:labelEn}</span></button>)}</div><p className="tools-hint">{es?'Las direcciones son un punto de partida: podés mover la punta para ajustarlas a la situación física.':'Directions are starting points; drag each tip to match the physical setup.'}</p></section></>}
   </aside>
 }
 

@@ -52,7 +52,7 @@ function FormulaView({ node, updateAttributes, selected }: NodeViewProps) {
   }
   return (
     <NodeViewWrapper as="span" className={`formula-node${selected ? ' is-selected' : ''}`}>
-      {React.createElement('math-field', { ref: mathRef, className: 'mathfield', 'aria-label': 'Editable mathematical expression', onClick: () => mathRef.current?.focus(), onInput: handleInput, onKeyDown: handleKeyDown, onBlur: () => { commandRef.current = null; window.dispatchEvent(new CustomEvent('graphia:math-query', { detail: { query: null, field: mathRef.current } })) }, 'virtual-keyboard-mode': 'manual' })}
+      {React.createElement('math-field', { ref: mathRef, className: 'mathfield', 'aria-label': 'Editable mathematical expression', onPointerDown: (event: React.PointerEvent<HTMLElement>) => { event.stopPropagation() }, onMouseDown: (event: React.MouseEvent<HTMLElement>) => { event.stopPropagation() }, onClick: () => mathRef.current?.focus(), onInput: handleInput, onKeyDown: handleKeyDown, onBlur: () => { commandRef.current = null; window.dispatchEvent(new CustomEvent('graphia:math-query', { detail: { query: null, field: mathRef.current } })) }, 'virtual-keyboard-mode': 'manual' })}
     </NodeViewWrapper>
   )
 }

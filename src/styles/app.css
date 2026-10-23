@@ -215,6 +215,12 @@
 .app-frame { padding: 0; background: radial-gradient(ellipse at 5% 0%, rgb(50 130 246 / 15%), transparent 33%), radial-gradient(ellipse at 92% 100%, rgb(34 211 238 / 8%), transparent 35%), var(--bg); }
 .main-pane { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
 .sidebar { border-radius: 0; border-block: 0; border-left: 0; background: linear-gradient(180deg, #0b1829, #081020); }
+:root[data-theme='light'] .sidebar { border-color: var(--border); background: linear-gradient(180deg, #f7f9ff, #eaf0fb); }
+:root[data-theme='light'] .sidebar .brand-name, :root[data-theme='light'] .sidebar .nav-item, :root[data-theme='light'] .sidebar .sidebar-group-label, :root[data-theme='light'] .sidebar .sidebar-note { color: var(--text); }
+:root[data-theme='light'] .sidebar .nav-item.selected { background: #e1eaff; color: #245dc2; }
+.theme-toggle { display:grid; width:32px; height:32px; flex:0 0 32px; place-items:center; padding:0; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text-soft); cursor:pointer; }
+.theme-toggle:hover { border-color:var(--accent); color:var(--accent); }
+.theme-toggle svg { width:16px; height:16px; }
 .brand-mark { border-color: rgb(50 130 246 / 44%); border-radius: 9px; background: linear-gradient(145deg, rgb(50 130 246 / 23%), rgb(34 211 238 / 10%)); cursor: pointer; }
 .brand-mark svg { width: 20px; fill: none; stroke: #48b9ff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 .brand-name { font-size: 18px; letter-spacing: -.8px; }
